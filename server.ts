@@ -9,6 +9,20 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+/**
+ * Retrieves the Gemini API key from process environment variables.
+ * Checks GEMINI_API_KEY first, followed by common aliases (GOOGLE_API_KEY, GOOGLE_GENAI_API_KEY)
+ * to support Vercel and standard cloud deployment environments.
+ */
+function getGeminiApiKey(): string {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    ""
+  ).trim();
+}
+
 // Increase payload limit for base64 video/file payloads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -34,10 +48,10 @@ app.post("/api/annotate-video", async (req, res) => {
       scenesInput
     } = req.body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getGeminiApiKey();
     if (!apiKey) {
       return res.status(500).json({
-        error: "GEMINI_API_KEY is missing. Please set your Gemini API key in Settings > Secrets."
+        error: "GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
       });
     }
 
@@ -272,10 +286,10 @@ app.post("/api/revise-scene", async (req, res) => {
   try {
     const { sceneId, currentDescription, feedback, rawDescription, startImage, snapshotImage } = req.body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getGeminiApiKey();
     if (!apiKey) {
       return res.status(500).json({
-        error: "GEMINI_API_KEY is missing. Please set your Gemini API key in Settings > Secrets."
+        error: "GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
       });
     }
 
@@ -344,10 +358,10 @@ app.post("/api/transcribe-audio", async (req, res) => {
   try {
     const { audioData, audioMimeType, fileName } = req.body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getGeminiApiKey();
     if (!apiKey) {
       return res.status(500).json({
-        error: "GEMINI_API_KEY is missing. Please set your Gemini API key in Settings > Secrets."
+        error: "GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
       });
     }
 
@@ -469,4 +483,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start standalone HTTP listener when running directly in local dev or container
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+export { app };
