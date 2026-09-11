@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
@@ -27,13 +26,22 @@ function getGeminiApiKey(): string {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Dedicated API Router to handle both prefixed and root requests seamlessly on Vercel & Express
+const apiRouter = express.Router();
+
 // Health Check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+apiRouter.get(["/health", "/api/health"], (req, res) => {
+  const apiKey = getGeminiApiKey();
+  res.json({
+    status: "ok",
+    hasApiKey: !!apiKey,
+    keyConfigured: !!apiKey,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Video / Scene Snapshot Annotation API
-app.post("/api/annotate-video", async (req, res) => {
+apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
   try {
     const {
       videoData,
@@ -282,7 +290,7 @@ Video Metadata:
 });
 
 // Stage 3 Scene Description Revision API Endpoint
-app.post("/api/revise-scene", async (req, res) => {
+apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
   try {
     const { sceneId, currentDescription, feedback, rawDescription, startImage, snapshotImage } = req.body;
 
@@ -354,7 +362,7 @@ app.post("/api/revise-scene", async (req, res) => {
 });
 
 // Audio MP3 Subtitle Transcription API Endpoint
-app.post("/api/transcribe-audio", async (req, res) => {
+apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
   try {
     const { audioData, audioMimeType, fileName } = req.body;
 
@@ -463,8 +471,13 @@ function formatSecondsToTimestamp(totalSeconds: number): string {
   return `${hh}:${mm}:${ss}.${mmm}`;
 }
 
+// Mount apiRouter on both /api and root /
+app.use("/api", apiRouter);
+app.use("/", apiRouter);
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"

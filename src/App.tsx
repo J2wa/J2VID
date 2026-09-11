@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SAMPLE_VIDEOS } from './data/sampleVideos';
 import { SubtitleList } from './components/SubtitleList';
 import { VideoAnnotationResult, AgentWorkflowStep, SceneAnnotation, SceneInput, SubtitleAnnotation } from './types';
@@ -14,7 +14,7 @@ import { ManualAnnotationEditor } from './components/ManualAnnotationEditor';
 import { EventSetupModal } from './components/EventSetupModal';
 import { UploadBentoPortal } from './components/UploadBentoPortal';
 import { formatSecondsToTimestamp, parseTimestampToSeconds } from './utils/timeUtils';
-import { MapPin, Clock, Sparkles, Edit3, Globe, Layers } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Edit3, Globe, Layers, AlertTriangle } from 'lucide-react';
 
 export default function App() {
   // Active annotation result
@@ -39,6 +39,21 @@ export default function App() {
   // Agent Pipeline state
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+
+  // API Status & Error Warnings (e.g. Vercel environment variables)
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [keyMissingWarning, setKeyMissingWarning] = useState<boolean>(false);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.hasApiKey === false) {
+          setKeyMissingWarning(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [agentSteps, setAgentSteps] = useState<AgentWorkflowStep[]>([
     {
       step_number: 1,
@@ -163,6 +178,8 @@ export default function App() {
 
         if (res.ok) {
           resultData = await res.json();
+          setApiError(null);
+          setKeyMissingWarning(false);
           // Merge images and raw descriptions into scenes if not returned by server
           if (resultData.scenes) {
             resultData.scenes = resultData.scenes.map((sc, idx) => {
@@ -176,9 +193,15 @@ export default function App() {
             });
           }
         } else {
+          const errBody = await res.json().catch(() => ({}));
+          const errMsg = errBody.error || `Server returned status ${res.status} (${res.statusText})`;
+          console.warn('Backend API call failed:', errMsg);
+          setApiError(errMsg);
           resultData = buildFallbackResult(scenesInput, totalSec, bgContext);
         }
-      } catch (err) {
+      } catch (err: any) {
+        console.warn('Network error calling /api/annotate-video:', err);
+        setApiError(err?.message || 'Network error connecting to /api/annotate-video.');
         resultData = buildFallbackResult(scenesInput, totalSec, bgContext);
       }
 
@@ -491,6 +514,45 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        {/* Vercel / API Key Setup Alert Banner */}
+        {(keyMissingWarning || apiError) && (
+          <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 p-4 rounded-2xl shadow-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs sm:text-sm space-y-1.5">
+              <div className="font-semibold text-amber-300 flex items-center gap-2">
+                <span>{apiError ? 'Gemini API Execution Notice' : 'Gemini API Key Missing on Vercel'}</span>
+                <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 uppercase tracking-wide">
+                  Fallback Active
+                </span>
+              </div>
+              <p className="text-amber-200/90 leading-relaxed">
+                {apiError
+                  ? apiError
+                  : 'GEMINI_API_KEY environment variable is not configured. The app is currently using offline template descriptions.'}
+              </p>
+              <div className="bg-black/30 border border-amber-500/20 rounded-xl p-3 space-y-1 text-xs text-amber-300/90 font-sans">
+                <p className="font-semibold text-amber-200">How to fix in your Vercel project:</p>
+                <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-amber-200/80">
+                  <li>Open your <strong>Vercel Dashboard</strong> and click on this project</li>
+                  <li>Navigate to <strong>Settings</strong> &gt; <strong>Environment Variables</strong></li>
+                  <li>Add Variable Name: <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300 font-mono">GEMINI_API_KEY</code></li>
+                  <li>Paste your Gemini API key in the Value field and click <strong>Save</strong></li>
+                  <li>Go to the <strong>Deployments</strong> tab and select <strong>Redeploy</strong> to apply the changes</li>
+                </ol>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setApiError(null);
+                setKeyMissingWarning(false);
+              }}
+              className="text-amber-400/60 hover:text-amber-300 text-xs px-2 py-1 rounded transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* Bento Portal (Displayed before generation triggers) */}
         {!hasStartedGeneration && !annotationResult ? (
           <UploadBentoPortal
