@@ -76,7 +76,10 @@ export default function App() {
 
   useEffect(() => {
     fetch('/api/health')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Backend health check failed (HTTP ${res.status}). Check the Vercel runtime logs; API key status could not be verified.`);
+        return res.json();
+      })
       .then((data) => {
         if (data) {
           setKeyStatus({
@@ -89,7 +92,9 @@ export default function App() {
           }
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        setApiError(error instanceof Error ? error.message : 'Backend health check failed. API key status could not be verified.');
+      });
   }, []);
   const [agentSteps, setAgentSteps] = useState<AgentWorkflowStep[]>([
     {
