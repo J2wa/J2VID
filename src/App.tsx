@@ -35,6 +35,9 @@ export default function App() {
 
   // Custom Event Setup Parameters Modal State
   const [isSetupModalOpen, setIsSetupModalOpen] = useState<boolean>(false);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('j2-activity', { detail: isEditorOpen ? 'editing' : isSetupModalOpen ? 'setup' : activeTab }));
+  }, [activeTab, isEditorOpen, isSetupModalOpen]);
   const [configuredScenes, setConfiguredScenes] = useState<SceneInput[]>([]);
   const [globalBackground, setGlobalBackground] = useState<string>('');
 
@@ -209,7 +212,7 @@ export default function App() {
       try {
         const res = await fetch('/api/annotate-video', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
           body: JSON.stringify({
             scenesInput,
             initialBackground: bgContext || undefined,
@@ -483,7 +486,7 @@ export default function App() {
     try {
       const res = await fetch('/api/revise-scene', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
         body: JSON.stringify({
           sceneId,
           currentDescription: targetScene.narrative_description,

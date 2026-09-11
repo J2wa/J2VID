@@ -48,7 +48,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
         try {
           const res = await fetch('/api/transcribe-audio', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
             body: JSON.stringify({
               audioData: dataUrl,
               audioMimeType: file.type || 'audio/mp3',

@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { accessApp, requireSession } from './lib/access.js';
 
 dotenv.config();
 
@@ -230,6 +231,13 @@ async function runGeminiWithFallback(
     throw err;
   }
 }
+
+app.use('/api/access', accessApp);
+app.use((req, res, next) => {
+  if (req.method === 'POST' && /\/(annotate-video|revise-scene|transcribe-audio)\/?$/.test(req.path)) {
+    void requireSession(req, res, next);
+  } else next();
+});
 
 // Increase payload limit for base64 video/file payloads
 app.use(express.json({ limit: "50mb" }));
