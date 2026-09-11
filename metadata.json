@@ -1,0 +1,6 @@
+{
+  "name": "J2 Clips",
+  "description": "Minimalist AI video annotation & clip processing agent powered by Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
