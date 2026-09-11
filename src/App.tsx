@@ -13,8 +13,10 @@ import { ValidationReport } from './components/ValidationReport';
 import { ManualAnnotationEditor } from './components/ManualAnnotationEditor';
 import { EventSetupModal } from './components/EventSetupModal';
 import { UploadBentoPortal } from './components/UploadBentoPortal';
+import { ModelSelectorModal } from './components/ModelSelectorModal';
+import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from './data/models';
 import { formatSecondsToTimestamp, parseTimestampToSeconds } from './utils/timeUtils';
-import { MapPin, Clock, Sparkles, Edit3, Globe, Layers, AlertTriangle } from 'lucide-react';
+import { MapPin, Clock, Sparkles, Edit3, Globe, Layers, AlertTriangle, Zap, ArrowRightLeft, ShieldCheck } from 'lucide-react';
 
 export default function App() {
   // Active annotation result
@@ -36,6 +38,18 @@ export default function App() {
   const [configuredScenes, setConfiguredScenes] = useState<SceneInput[]>([]);
   const [globalBackground, setGlobalBackground] = useState<string>('');
 
+  // Selected AI Model & Quota Fallback
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem('j2_selected_gemini_model') || DEFAULT_MODEL_ID;
+  });
+  const [autoFallback, setAutoFallback] = useState<boolean>(() => {
+    const saved = localStorage.getItem('j2_auto_fallback');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [isModelModalOpen, setIsModelModalOpen] = useState<boolean>(false);
+  const [quotaExhaustedAlert, setQuotaExhaustedAlert] = useState<{ model: string; suggestedFallback: string } | null>(null);
+  const [fallbackSuccessNotice, setFallbackSuccessNotice] = useState<{ originalModel: string; usedModel: string } | null>(null);
+
   // Agent Pipeline state
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
@@ -43,6 +57,17 @@ export default function App() {
   // API Status & Error Warnings (e.g. Vercel environment variables)
   const [apiError, setApiError] = useState<string | null>(null);
   const [keyMissingWarning, setKeyMissingWarning] = useState<boolean>(false);
+
+  const handleSelectModel = (modelId: string) => {
+    setSelectedModel(modelId);
+    localStorage.setItem('j2_selected_gemini_model', modelId);
+    setQuotaExhaustedAlert(null);
+  };
+
+  const handleToggleAutoFallback = (enabled: boolean) => {
+    setAutoFallback(enabled);
+    localStorage.setItem('j2_auto_fallback', String(enabled));
+  };
 
   useEffect(() => {
     fetch('/api/health')
@@ -172,7 +197,9 @@ export default function App() {
             scenesInput,
             initialBackground: bgContext || undefined,
             durationSeconds: totalSec,
-            audioData
+            audioData,
+            model: selectedModel,
+            autoFallback
           })
         });
 
@@ -180,6 +207,15 @@ export default function App() {
           resultData = await res.json();
           setApiError(null);
           setKeyMissingWarning(false);
+          setQuotaExhaustedAlert(null);
+
+          if (resultData._fellBackFrom) {
+            setFallbackSuccessNotice({
+              originalModel: resultData._fellBackFrom,
+              usedModel: resultData._modelUsed || 'Gemini 3.1 Flash Lite'
+            });
+          }
+
           // Merge images and raw descriptions into scenes if not returned by server
           if (resultData.scenes) {
             resultData.scenes = resultData.scenes.map((sc, idx) => {
@@ -197,6 +233,14 @@ export default function App() {
           const errMsg = errBody.error || `Server returned status ${res.status} (${res.statusText})`;
           console.warn('Backend API call failed:', errMsg);
           setApiError(errMsg);
+
+          if (res.status === 429 || errBody.isQuotaExhausted) {
+            setQuotaExhaustedAlert({
+              model: errBody.modelUsed || selectedModel,
+              suggestedFallback: errBody.suggestedFallback || 'gemini-3.1-flash-lite'
+            });
+          }
+
           resultData = buildFallbackResult(scenesInput, totalSec, bgContext);
         }
       } catch (err: any) {
@@ -429,12 +473,20 @@ export default function App() {
           feedback,
           rawDescription: targetScene.raw_description,
           startImage: targetScene.start_image,
-          endImage: targetScene.end_image
+          endImage: targetScene.end_image,
+          model: selectedModel,
+          autoFallback
         })
       });
 
       if (res.ok) {
         const data = await res.json();
+        if (data._fellBackFrom) {
+          setFallbackSuccessNotice({
+            originalModel: data._fellBackFrom,
+            usedModel: data._modelUsed || 'Gemini 3.1 Flash Lite'
+          });
+        }
         if (data.revised_description) {
           const updatedScenes = annotationResult.scenes.map((sc) => {
             if (sc.scene_id === sceneId) {
@@ -448,6 +500,14 @@ export default function App() {
           setAnnotationResult({
             ...annotationResult,
             scenes: updatedScenes
+          });
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 429 || errData.isQuotaExhausted) {
+          setQuotaExhaustedAlert({
+            model: errData.modelUsed || selectedModel,
+            suggestedFallback: errData.suggestedFallback || 'gemini-3.1-flash-lite'
           });
         }
       }
@@ -510,10 +570,73 @@ export default function App() {
         setActiveTab={setActiveTab}
         onResetVideo={handleReset}
         hasVideo={Boolean(configuredScenes.length > 0 || annotationResult)}
+        selectedModel={selectedModel}
+        onOpenModelSelector={() => setIsModelModalOpen(true)}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        {/* Quota Exhausted / Rate Limit Notice Banner with Quick Model Switch */}
+        {quotaExhaustedAlert && (
+          <div className="bg-rose-950/40 border border-rose-500/40 text-rose-200 p-4 rounded-2xl shadow-xl flex items-start gap-3 animate-fadeIn">
+            <Zap className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs sm:text-sm space-y-2">
+              <div className="font-semibold text-rose-300 flex items-center gap-2 flex-wrap">
+                <span>Free Tier API Quota or Rate Limit Reached for {quotaExhaustedAlert.model}</span>
+                <span className="text-[10px] bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/30 uppercase tracking-wide">
+                  429 Quota Exhausted
+                </span>
+              </div>
+              <p className="text-rose-200/90 leading-relaxed text-xs">
+                Your request quota for <strong>{quotaExhaustedAlert.model}</strong> is currently exhausted. Switch to <strong>{quotaExhaustedAlert.suggestedFallback}</strong> to continue generating with a separate free-tier quota pool.
+              </p>
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <button
+                  onClick={() => {
+                    handleSelectModel(quotaExhaustedAlert.suggestedFallback);
+                    setQuotaExhaustedAlert(null);
+                    setApiError(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-md"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                  Switch to {AVAILABLE_MODELS.find(m => m.id === quotaExhaustedAlert.suggestedFallback)?.name || quotaExhaustedAlert.suggestedFallback}
+                </button>
+                <button
+                  onClick={() => setIsModelModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-rose-900/40 hover:bg-rose-900/70 border border-rose-500/30 text-rose-200 rounded-xl font-medium text-xs transition-colors"
+                >
+                  Choose Different Model
+                </button>
+                <button
+                  onClick={() => setQuotaExhaustedAlert(null)}
+                  className="text-rose-300/70 hover:text-rose-100 text-xs px-2 py-1 ml-auto"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Automatic Quota Fallback Success Notice */}
+        {fallbackSuccessNotice && (
+          <div className="bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                <strong>Automatic Quota Protection:</strong> Free tier quota for <em>{fallbackSuccessNotice.originalModel}</em> was exhausted. Your request was seamlessly fulfilled using <strong>{fallbackSuccessNotice.usedModel}</strong>.
+              </span>
+            </div>
+            <button
+              onClick={() => setFallbackSuccessNotice(null)}
+              className="text-emerald-400/70 hover:text-emerald-200 text-xs px-2 py-1 transition-colors shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* Vercel / API Key Setup Alert Banner */}
         {(keyMissingWarning || apiError) && (
           <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 p-4 rounded-2xl shadow-xl flex items-start gap-3">
@@ -648,6 +771,8 @@ export default function App() {
                         });
                       }
                     }}
+                    selectedModel={selectedModel}
+                    autoFallback={autoFallback}
                   />
                 </div>
               </div>
@@ -703,6 +828,16 @@ export default function App() {
         initialScene={editingScene}
         currentVideoTime={currentTime}
         onSaveScene={handleSaveScene}
+      />
+
+      {/* Model Selection & Free-Tier Quota Fallback Modal */}
+      <ModelSelectorModal
+        isOpen={isModelModalOpen}
+        onClose={() => setIsModelModalOpen(false)}
+        selectedModel={selectedModel}
+        onSelectModel={handleSelectModel}
+        autoFallback={autoFallback}
+        onToggleAutoFallback={handleToggleAutoFallback}
       />
     </div>
   );

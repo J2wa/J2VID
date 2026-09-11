@@ -11,6 +11,8 @@ interface SubtitleListProps {
   onAddSubtitle: () => void;
   onDeleteSubtitle: (subId: number) => void;
   onSubtitlesGenerated?: (newSubtitles: SubtitleAnnotation[]) => void;
+  selectedModel?: string;
+  autoFallback?: boolean;
 }
 
 export const SubtitleList: React.FC<SubtitleListProps> = ({
@@ -20,7 +22,9 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   onEditSubtitle,
   onAddSubtitle,
   onDeleteSubtitle,
-  onSubtitlesGenerated
+  onSubtitlesGenerated,
+  selectedModel,
+  autoFallback
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -48,7 +52,9 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             body: JSON.stringify({
               audioData: dataUrl,
               audioMimeType: file.type || 'audio/mp3',
-              fileName: file.name
+              fileName: file.name,
+              model: selectedModel,
+              autoFallback
             })
           });
 

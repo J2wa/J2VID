@@ -22,6 +22,82 @@ function getGeminiApiKey(): string {
   ).trim();
 }
 
+// Allowed Gemini Models per SDK specifications
+const VALID_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-latest",
+  "gemini-3.1-pro-preview",
+  "gemini-3.5-transcribe"
+];
+
+function sanitizeModel(modelInput?: string, defaultModel = "gemini-3.8-flash"): string {
+  if (modelInput && VALID_MODELS.includes(modelInput)) {
+    return modelInput;
+  }
+  return defaultModel;
+}
+
+function isQuotaError(err: any): boolean {
+  const msg = (err?.message || "").toLowerCase();
+  const status = err?.status || err?.statusCode || 0;
+  return (
+    status === 429 ||
+    msg.includes("resource_exhausted") ||
+    msg.includes("quota") ||
+    msg.includes("rate limit") ||
+    msg.includes("429") ||
+    msg.includes("too many requests")
+  );
+}
+
+async function runGeminiWithFallback(
+  ai: GoogleGenAI,
+  params: any,
+  requestedModel: string,
+  autoFallback = true
+) {
+  try {
+    const response = await ai.models.generateContent({
+      ...params,
+      model: requestedModel
+    });
+    return {
+      response,
+      modelUsed: requestedModel,
+      fellBack: false,
+      originalModel: requestedModel
+    };
+  } catch (err: any) {
+    if (autoFallback && isQuotaError(err)) {
+      // Switch to alternative model with separate quota bucket
+      const fallbackModel =
+        requestedModel === "gemini-3.1-flash-lite"
+          ? "gemini-3.8-flash"
+          : "gemini-3.1-flash-lite";
+      console.warn(
+        `[Gemini Quota Notice] Free tier / rate limit exhausted for '${requestedModel}'. Automatically failing over to '${fallbackModel}'...`
+      );
+      try {
+        const response = await ai.models.generateContent({
+          ...params,
+          model: fallbackModel
+        });
+        return {
+          response,
+          modelUsed: fallbackModel,
+          fellBack: true,
+          originalModel: requestedModel
+        };
+      } catch (fallbackErr: any) {
+        console.error(`Fallback to '${fallbackModel}' also failed:`, fallbackErr);
+        throw fallbackErr;
+      }
+    }
+    throw err;
+  }
+}
+
 // Increase payload limit for base64 video/file payloads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -36,12 +112,16 @@ apiRouter.get(["/health", "/api/health"], (req, res) => {
     status: "ok",
     hasApiKey: !!apiKey,
     keyConfigured: !!apiKey,
+    availableModels: VALID_MODELS,
     timestamp: new Date().toISOString()
   });
 });
 
 // Video / Scene Snapshot Annotation API
 apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
+  let targetModel = sanitizeModel(req.body.model, "gemini-3.8-flash");
+  const autoFallback = req.body.autoFallback !== false;
+
   try {
     const {
       videoData,
@@ -211,59 +291,63 @@ Video Metadata:
       parts.push({ text: userPrompt });
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite",
-      contents: { parts },
-      config: {
-        systemInstruction,
-        temperature: 0.1,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            video_duration: { type: Type.STRING },
-            suitability: {
-              type: Type.OBJECT,
-              properties: {
-                status: { type: Type.STRING, description: "'suitable' or 'discarded'" },
-                category: { type: Type.STRING, description: "'Live Performance', 'Documentary', 'Movie', 'Advertisement', or null" },
-                confidence: { type: Type.NUMBER },
-                reason: { type: Type.STRING }
+    const { response, modelUsed, fellBack, originalModel } = await runGeminiWithFallback(
+      ai,
+      {
+        contents: { parts },
+        config: {
+          systemInstruction,
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              video_duration: { type: Type.STRING },
+              suitability: {
+                type: Type.OBJECT,
+                properties: {
+                  status: { type: Type.STRING, description: "'suitable' or 'discarded'" },
+                  category: { type: Type.STRING, description: "'Live Performance', 'Documentary', 'Movie', 'Advertisement', or null" },
+                  confidence: { type: Type.NUMBER },
+                  reason: { type: Type.STRING }
+                },
+                required: ["status", "confidence", "reason"]
               },
-              required: ["status", "confidence", "reason"]
-            },
-            scenes: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  scene_id: { type: Type.INTEGER },
-                  start_time: { type: Type.STRING },
-                  end_time: { type: Type.STRING },
-                  narrative_description: { type: Type.STRING }
-                },
-                required: ["scene_id", "narrative_description"]
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    scene_id: { type: Type.INTEGER },
+                    start_time: { type: Type.STRING },
+                    end_time: { type: Type.STRING },
+                    narrative_description: { type: Type.STRING }
+                  },
+                  required: ["scene_id", "narrative_description"]
+                }
+              },
+              subtitles: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle_id: { type: Type.INTEGER },
+                    start_time: { type: Type.STRING },
+                    end_time: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    text: { type: Type.STRING }
+                  },
+                  required: ["subtitle_id", "start_time", "end_time", "type", "text"]
+                }
               }
             },
-            subtitles: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  subtitle_id: { type: Type.INTEGER },
-                  start_time: { type: Type.STRING },
-                  end_time: { type: Type.STRING },
-                  type: { type: Type.STRING },
-                  text: { type: Type.STRING }
-                },
-                required: ["subtitle_id", "start_time", "end_time", "type", "text"]
-              }
-            }
-          },
-          required: ["video_duration", "suitability", "scenes"]
+            required: ["video_duration", "suitability", "scenes"]
+          }
         }
-      }
-    });
+      },
+      targetModel,
+      autoFallback
+    );
 
     const responseText = response.text || "";
     const parsedData = JSON.parse(responseText);
@@ -280,17 +364,29 @@ Video Metadata:
       parsedData.subtitles = [];
     }
 
+    parsedData._modelUsed = modelUsed;
+    if (fellBack) {
+      parsedData._fellBackFrom = originalModel;
+    }
+
     return res.json(parsedData);
   } catch (error: any) {
     console.error("Error in /api/annotate-video:", error);
-    return res.status(500).json({
-      error: error.message || "Failed to process video annotation."
+    const quotaExhausted = isQuotaError(error);
+    return res.status(quotaExhausted ? 429 : 500).json({
+      error: error.message || "Failed to process video annotation.",
+      isQuotaExhausted: quotaExhausted,
+      modelUsed: targetModel,
+      suggestedFallback: targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
     });
   }
 });
 
 // Stage 3 Scene Description Revision API Endpoint
 apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
+  let targetModel = sanitizeModel(req.body.model, "gemini-3.8-flash");
+  const autoFallback = req.body.autoFallback !== false;
+
   try {
     const { sceneId, currentDescription, feedback, rawDescription, startImage, snapshotImage } = req.body;
 
@@ -337,32 +433,49 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
 
     parts.push({ text: prompt });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite",
-      contents: { parts },
-      config: {
-        temperature: 0.2,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            revised_description: { type: Type.STRING }
-          },
-          required: ["revised_description"]
+    const { response, modelUsed, fellBack, originalModel } = await runGeminiWithFallback(
+      ai,
+      {
+        contents: { parts },
+        config: {
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              revised_description: { type: Type.STRING }
+            },
+            required: ["revised_description"]
+          }
         }
-      }
-    });
+      },
+      targetModel,
+      autoFallback
+    );
 
     const parsed = JSON.parse(response.text || "{}");
-    return res.json({ revised_description: parsed.revised_description || currentDescription });
+    return res.json({
+      revised_description: parsed.revised_description || currentDescription,
+      _modelUsed: modelUsed,
+      _fellBackFrom: fellBack ? originalModel : undefined
+    });
   } catch (err: any) {
     console.error("Error in /api/revise-scene:", err);
-    return res.status(500).json({ error: err.message || "Failed to revise scene description." });
+    const quotaExhausted = isQuotaError(err);
+    return res.status(quotaExhausted ? 429 : 500).json({
+      error: err.message || "Failed to revise scene description.",
+      isQuotaExhausted: quotaExhausted,
+      modelUsed: targetModel,
+      suggestedFallback: targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
+    });
   }
 });
 
 // Audio MP3 Subtitle Transcription API Endpoint
 apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
+  let targetModel = sanitizeModel(req.body.model, "gemini-3.5-transcribe");
+  const autoFallback = req.body.autoFallback !== false;
+
   try {
     const { audioData, audioMimeType, fileName } = req.body;
 
@@ -419,41 +532,55 @@ Output a JSON object containing a 'subtitles' array, where each item has:
 - text: transcribed words or audio description in clear English/original language.`
     });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite",
-      contents: { parts },
-      config: {
-        systemInstruction: "You are an expert audio transcription and subtitling AI. Convert spoken audio tracks into precise timed subtitles with timestamps and category tags.",
-        temperature: 0.1,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            subtitles: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  subtitle_id: { type: Type.INTEGER },
-                  start_time: { type: Type.STRING },
-                  end_time: { type: Type.STRING },
-                  type: { type: Type.STRING },
-                  text: { type: Type.STRING }
-                },
-                required: ["subtitle_id", "start_time", "end_time", "type", "text"]
+    const { response, modelUsed, fellBack, originalModel } = await runGeminiWithFallback(
+      ai,
+      {
+        contents: { parts },
+        config: {
+          systemInstruction: "You are an expert audio transcription and subtitling AI. Convert spoken audio tracks into precise timed subtitles with timestamps and category tags.",
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              subtitles: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle_id: { type: Type.INTEGER },
+                    start_time: { type: Type.STRING },
+                    end_time: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    text: { type: Type.STRING }
+                  },
+                  required: ["subtitle_id", "start_time", "end_time", "type", "text"]
+                }
               }
-            }
-          },
-          required: ["subtitles"]
+            },
+            required: ["subtitles"]
+          }
         }
-      }
-    });
+      },
+      targetModel,
+      autoFallback
+    );
 
     const parsedData = JSON.parse(response.text || "{}");
+    parsedData._modelUsed = modelUsed;
+    if (fellBack) {
+      parsedData._fellBackFrom = originalModel;
+    }
     return res.json(parsedData);
   } catch (err: any) {
     console.error("Error in /api/transcribe-audio:", err);
-    return res.status(500).json({ error: err.message || "Failed to transcribe audio file." });
+    const quotaExhausted = isQuotaError(err);
+    return res.status(quotaExhausted ? 429 : 500).json({
+      error: err.message || "Failed to transcribe audio file.",
+      isQuotaExhausted: quotaExhausted,
+      modelUsed: targetModel,
+      suggestedFallback: targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
+    });
   }
 });
 

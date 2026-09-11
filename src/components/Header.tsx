@@ -1,7 +1,8 @@
 import React from 'react';
-import { Video, Sparkles, Download, FileText, Code2, RefreshCw, Layers } from 'lucide-react';
+import { Video, Sparkles, Download, FileText, Code2, RefreshCw, Layers, Cpu, ChevronDown } from 'lucide-react';
 import { VideoAnnotationResult } from '../types';
 import { downloadFile, generateSrtContent, generateVttContent } from '../utils/exportUtils';
+import { AVAILABLE_MODELS } from '../data/models';
 
 interface HeaderProps {
   currentTitle: string;
@@ -12,6 +13,8 @@ interface HeaderProps {
   setActiveTab: (tab: 'annotations' | 'timeline' | 'json' | 'workflow') => void;
   onResetVideo?: () => void;
   hasVideo: boolean;
+  selectedModel?: string;
+  onOpenModelSelector?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,8 +25,11 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   onResetVideo,
-  hasVideo
+  hasVideo,
+  selectedModel = 'gemini-3.8-flash',
+  onOpenModelSelector
 }) => {
+  const activeModelObj = AVAILABLE_MODELS.find(m => m.id === selectedModel) || AVAILABLE_MODELS[0];
   const handleDownloadJson = () => {
     if (!annotationResult) return;
     const jsonStr = JSON.stringify(annotationResult, null, 2);
@@ -119,7 +125,25 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+        <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+          {onOpenModelSelector && (
+            <button
+              onClick={onOpenModelSelector}
+              className="text-xs bg-[#18181b] hover:bg-zinc-800 text-zinc-200 hover:text-white px-3 py-2 rounded-2xl border border-[#27272a] hover:border-zinc-700 transition-all font-medium flex items-center gap-2 shadow-sm"
+              title="Select Gemini Model / Quota Fallback"
+            >
+              <Cpu className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <div className="flex items-center gap-1.5 text-left">
+                <span className="hidden sm:inline font-semibold">{activeModelObj.name}</span>
+                <span className="sm:hidden font-semibold">Model</span>
+                <span className="text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded-md font-mono hidden lg:inline">
+                  {activeModelObj.id === 'gemini-3.8-flash' ? 'Default' : activeModelObj.tag}
+                </span>
+              </div>
+              <ChevronDown className="w-3 h-3 text-zinc-400 ml-0.5" />
+            </button>
+          )}
+
           {onResetVideo && hasVideo && (
             <button
               onClick={onResetVideo}

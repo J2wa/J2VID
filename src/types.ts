@@ -57,6 +57,8 @@ export interface VideoAnnotationResult {
   suitability: SuitabilityResult;
   scenes: SceneAnnotation[];
   subtitles: SubtitleAnnotation[];
+  _modelUsed?: string;
+  _fellBackFrom?: string;
 }
 
 export interface AgentWorkflowStep {
