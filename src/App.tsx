@@ -57,6 +57,11 @@ export default function App() {
   // API Status & Error Warnings (e.g. Vercel environment variables)
   const [apiError, setApiError] = useState<string | null>(null);
   const [keyMissingWarning, setKeyMissingWarning] = useState<boolean>(false);
+  const [keyStatus, setKeyStatus] = useState<{
+    hasApiKey: boolean;
+    hasGeminiKey: boolean;
+    hasOpenRouterKey: boolean;
+  }>({ hasApiKey: true, hasGeminiKey: true, hasOpenRouterKey: false });
 
   const handleSelectModel = (modelId: string) => {
     setSelectedModel(modelId);
@@ -73,8 +78,15 @@ export default function App() {
     fetch('/api/health')
       .then((res) => res.json())
       .then((data) => {
-        if (data && data.hasApiKey === false) {
-          setKeyMissingWarning(true);
+        if (data) {
+          setKeyStatus({
+            hasApiKey: data.hasApiKey ?? false,
+            hasGeminiKey: data.hasGeminiKey ?? false,
+            hasOpenRouterKey: data.hasOpenRouterKey ?? false
+          });
+          if (data.hasApiKey === false) {
+            setKeyMissingWarning(true);
+          }
         }
       })
       .catch(() => {});
@@ -642,26 +654,29 @@ export default function App() {
           <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 p-4 rounded-2xl shadow-xl flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs sm:text-sm space-y-1.5">
-              <div className="font-semibold text-amber-300 flex items-center gap-2">
-                <span>{apiError ? 'Gemini API Execution Notice' : 'Gemini API Key Missing on Vercel'}</span>
+              <div className="font-semibold text-amber-300 flex items-center gap-2 flex-wrap">
+                <span>{apiError ? 'AI API Execution Notice' : 'No AI API Key Configured'}</span>
                 <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 uppercase tracking-wide">
-                  Fallback Active
+                  Configuration Needed
                 </span>
               </div>
               <p className="text-amber-200/90 leading-relaxed">
                 {apiError
                   ? apiError
-                  : 'GEMINI_API_KEY environment variable is not configured. The app is currently using offline template descriptions.'}
+                  : 'Neither GEMINI_API_KEY nor OPENROUTER_API_KEY is configured. Please provide one of these keys to run AI generation.'}
               </p>
-              <div className="bg-black/30 border border-amber-500/20 rounded-xl p-3 space-y-1 text-xs text-amber-300/90 font-sans">
-                <p className="font-semibold text-amber-200">How to fix in your Vercel project:</p>
-                <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-amber-200/80">
-                  <li>Open your <strong>Vercel Dashboard</strong> and click on this project</li>
-                  <li>Navigate to <strong>Settings</strong> &gt; <strong>Environment Variables</strong></li>
-                  <li>Add Variable Name: <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300 font-mono">GEMINI_API_KEY</code></li>
-                  <li>Paste your Gemini API key in the Value field and click <strong>Save</strong></li>
-                  <li>Go to the <strong>Deployments</strong> tab and select <strong>Redeploy</strong> to apply the changes</li>
-                </ol>
+              <div className="bg-black/30 border border-amber-500/20 rounded-xl p-3 space-y-2 text-xs text-amber-300/90 font-sans">
+                <p className="font-semibold text-amber-200">How to configure your API keys:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-zinc-800 space-y-1">
+                    <span className="font-bold text-blue-300">Option A: Google Gemini</span>
+                    <p className="text-zinc-300">Add <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300 font-mono">GEMINI_API_KEY</code> to your environment variables or local <code className="text-zinc-400">.env</code>.</p>
+                  </div>
+                  <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-zinc-800 space-y-1">
+                    <span className="font-bold text-cyan-300">Option B: OpenRouter</span>
+                    <p className="text-zinc-300">Add <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300 font-mono">OPENROUTER_API_KEY</code> to your environment variables or local <code className="text-zinc-400">.env</code>.</p>
+                  </div>
+                </div>
               </div>
             </div>
             <button
@@ -838,6 +853,8 @@ export default function App() {
         onSelectModel={handleSelectModel}
         autoFallback={autoFallback}
         onToggleAutoFallback={handleToggleAutoFallback}
+        hasGeminiKey={keyStatus.hasGeminiKey}
+        hasOpenRouterKey={keyStatus.hasOpenRouterKey}
       />
     </div>
   );
