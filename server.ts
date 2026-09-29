@@ -3,7 +3,7 @@ import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { accessApp, requireSession } from './lib/access.js';
-import { sceneStyleInstruction, subtitleStyleInstruction, normalizeSubtitles } from './lib/annotationConventions.js';
+import { sceneStyleInstruction, subtitleStyleInstruction, normalizeSubtitles, cleanSceneNarrative } from './lib/annotationConventions.js';
 
 dotenv.config();
 
@@ -289,7 +289,11 @@ function completeSceneAnswers(data: any, inputs: any[]): any {
         ? value.trim()
         : 'Cannot determine from the provided material.';
     }
-    return { ...scene, core_questions: { ...answers, ...inputAnswers(input) } };
+    return {
+      ...scene,
+      narrative_description: cleanSceneNarrative(scene.narrative_description),
+      core_questions: { ...answers, ...inputAnswers(input) }
+    };
   });
   return data;
 }
@@ -355,7 +359,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
 2. TRANSLATION: Translate any user guidance written in Tagalog (or Taglish) into clear, fluent, professional, objective English.
 3. DETAILED FACTUAL VISUAL DESCRIPTION GUIDELINES:
    - Carefully inspect the scene snapshot image for all visible entities, subjects, clothing, hair, posture, expressions, body orientation, gestures, and background setting.
-   - Write a factual, flowing video scene narrative using active verbs and present tense. Include only supported details.
+   - Write a concise, natural video scene narrative using active verbs and present tense. Include only supported details; one or two sentences can be enough.
    - Subject Details: Describe subject gender/age group, exact clothing garments, colors, patterns, footwear, hairstyle, facial posture, hand positions, and focal physical actions.
    - Spatial & Object Composition: Detail held items, props, furniture, machinery, or tools, specifying relative positioning (foreground, center, background, left/right).
    - Environmental Setting: Describe the physical environment (indoor/outdoor, architectural details, flooring, foliage, weather, lighting, color tone, and background context).
@@ -784,7 +788,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
       });
       const parsed = extractJson(raw);
       return res.json({
-        revised_description: parsed.revised_description || currentDescription,
+        revised_description: cleanSceneNarrative(parsed.revised_description || currentDescription),
         _modelUsed: effectiveOrModel,
         _provider: "openrouter"
       });
@@ -831,7 +835,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
 
     const parsed = JSON.parse(response.text || "{}");
     return res.json({
-      revised_description: parsed.revised_description || currentDescription,
+      revised_description: cleanSceneNarrative(parsed.revised_description || currentDescription),
       _modelUsed: modelUsed,
       _provider: "gemini",
       _fellBackFrom: fellBack ? originalModel : undefined
