@@ -244,7 +244,11 @@ export default function App() {
                 ...sc,
                 start_image: matchingInput?.start_image || matchingInput?.snapshot_image,
                 snapshot_image: matchingInput?.start_image || matchingInput?.snapshot_image,
-                raw_description: matchingInput?.raw_description
+                raw_description: matchingInput?.raw_description,
+                core_questions: {
+                  ...sc.core_questions,
+                  ...Object.fromEntries(Object.entries(matchingInput?.core_questions || {}).filter(([, value]) => typeof value === 'string' && value.trim()))
+                }
               };
             });
           }
@@ -378,7 +382,8 @@ export default function App() {
           narrative_description: narrative,
           start_image: sc.start_image || sc.snapshot_image,
           snapshot_image: sc.start_image || sc.snapshot_image,
-          raw_description: sc.raw_description
+           raw_description: sc.raw_description,
+           core_questions: sc.core_questions
         };
       }),
       subtitles: []

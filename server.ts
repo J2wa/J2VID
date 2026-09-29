@@ -263,6 +263,36 @@ apiRouter.get(["/health", "/api/health"], (req, res) => {
 });
 
 // Video / Scene Snapshot Annotation API
+const segmentQuestionKeys = ['setting', 'perspective', 'subject', 'action', 'environment', 'change'] as const;
+
+function inputAnswers(scene: any): Record<string, string> {
+  const answers: Record<string, string> = {};
+  for (const key of segmentQuestionKeys) {
+    const value = scene?.core_questions?.[key];
+    if (typeof value === 'string' && value.trim()) answers[key] = value.trim();
+  }
+  return answers;
+}
+
+function completeSceneAnswers(data: any, inputs: any[]): any {
+  if (!Array.isArray(data.scenes)) return data;
+  data.scenes = data.scenes.map((scene: any, index: number) => {
+    const input = inputs[index]?.scene_id === scene.scene_id
+      ? inputs[index]
+      : inputs.find((item) => item.scene_id === scene.scene_id) || inputs[index];
+    const generated = scene.core_questions || {};
+    const answers: Record<string, string> = {};
+    for (const key of segmentQuestionKeys) {
+      const value = generated[key];
+      answers[key] = typeof value === 'string' && value.trim()
+        ? value.trim()
+        : 'Cannot determine from the provided material.';
+    }
+    return { ...scene, core_questions: { ...answers, ...inputAnswers(input) } };
+  });
+  return data;
+}
+
 apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
   let targetModel = sanitizeModel(req.body.model, "gemini-3.8-flash");
   const autoFallback = req.body.autoFallback !== false;
@@ -322,7 +352,8 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
    - Spatial & Object Composition: Detail held items, props, furniture, machinery, or tools, specifying relative positioning (foreground, center, background, left/right).
    - Environmental Setting: Describe the physical environment (indoor/outdoor, architectural details, flooring, foliage, weather, lighting, color tone, and background context).
    - Combine the visual evidence from the snapshot image with the translated guidance into a dense, highly detailed, factual English visual narrative.
-4. DO NOT HALLUCINATE: Never invent unverified actions, emotions, internal motives, or subjective interpretations. Do NOT name real people, brand logos, or unverified locations.
+ 4. DO NOT HALLUCINATE: Never invent unverified actions, emotions, internal motives, or subjective interpretations. Do NOT name real people, brand logos, or unverified locations.
+ For EVERY scene, answer six separate questions in core_questions: setting (where am I?), perspective (how am I seeing it, including framing/angle), subject (who or what do I notice?), action (what is happening?), environment (what else is happening?), change (what changed from the previous scene?). Preserve the user's nonblank answers; fill blanks from the snapshot and guidance. A single still cannot prove motion or change. If evidence is insufficient, state "Cannot determine from the provided material." Keep answers specific to each scene.
 5. Produce strictly structured JSON conforming to the following format:
 {
   "video_duration": "${durationFormatted}",
@@ -337,7 +368,8 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
       "scene_id": 1,
       "start_time": "00:00:00.000",
       "end_time": "00:00:05.000",
-      "narrative_description": "Factual visual narrative..."
+       "narrative_description": "Factual visual narrative...",
+       "core_questions": { "setting": "...", "perspective": "...", "subject": "...", "action": "...", "environment": "...", "change": "..." }
     }
   ],
   "subtitles": []
@@ -356,6 +388,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
         if (sc.raw_description) {
           scenesText += `- User Action Guidance (Tagalog/English): "${sc.raw_description}"\n`;
         }
+        scenesText += `- User-provided six answers (preserve nonblank values, fill blanks): ${JSON.stringify(inputAnswers(sc))}\n`;
         if (sc.initial_background) {
           scenesText += `- Background Setting Context: "${sc.initial_background}"\n`;
         }
@@ -437,7 +470,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
             parsedData._fellBackFrom = targetModel;
           }
 
-          return res.json(parsedData);
+           return res.json(completeSceneAnswers(parsedData, scenesInput || []));
         } catch (orErr: any) {
           console.warn("[OpenRouter Error]", orErr.message);
           if (autoFallback && geminiKey) {
@@ -458,7 +491,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
             parsedData._modelUsed = fallbackOrModel;
             parsedData._fellBackFrom = effectiveOpenRouterModel;
             parsedData._provider = "openrouter";
-            return res.json(parsedData);
+             return res.json(completeSceneAnswers(parsedData, scenesInput || []));
           } else {
             throw orErr;
           }
@@ -511,6 +544,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
         if (sc.raw_description) {
           sceneHeader += `- User Action Guidance (Tagalog/English): "${sc.raw_description}"\n`;
         }
+        sceneHeader += `- User-provided six answers (preserve nonblank values, fill blanks): ${JSON.stringify(inputAnswers(sc))}\n`;
         if (sc.initial_background) {
           sceneHeader += `- Background Setting Context: "${sc.initial_background}"\n`;
         }
@@ -545,7 +579,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
       });
 
       parts.push({
-        text: `\nCRITICAL INSTRUCTIONS FOR GEMINI:\n1. For each scene, translate any Tagalog text into clear, fluent, professional English.\n2. Examine the scene snapshot image in high detail: describe subject gender/age, attire, hair, facial expression, posture, hand gestures, active movements, held props, background architectural/environmental context, and lighting.\n3. Combine image visual facts with translated guidance into an exceptionally detailed, 3-to-5 sentence objective, non-speculative English visual narrative.\n4. Output JSON containing a 'scenes' array with 'scene_id' and 'narrative_description'.`
+        text: `\nCRITICAL INSTRUCTIONS FOR GEMINI:\n1. For each scene, translate any Tagalog text into clear, fluent, professional English.\n2. Examine the scene snapshot image in high detail: describe subject gender/age, attire, hair, facial expression, posture, hand gestures, active movements, held props, background architectural/environmental context, and lighting.\n3. Combine image visual facts with translated guidance into an exceptionally detailed, 3-to-5 sentence objective, non-speculative English visual narrative.\n4. Output JSON containing a 'scenes' array with 'scene_id', 'narrative_description', and six 'core_questions' answers: setting, perspective, subject, action, environment, change. Preserve nonblank user answers, fill blank answers from evidence, and say when a change cannot be determined.`
       });
     } else {
       if (videoData && mimeType) {
@@ -603,9 +637,14 @@ Video Metadata:
                     scene_id: { type: Type.INTEGER },
                     start_time: { type: Type.STRING },
                     end_time: { type: Type.STRING },
-                    narrative_description: { type: Type.STRING }
+                     narrative_description: { type: Type.STRING },
+                     core_questions: {
+                       type: Type.OBJECT,
+                       properties: Object.fromEntries(segmentQuestionKeys.map((key) => [key, { type: Type.STRING }])),
+                       required: [...segmentQuestionKeys]
+                     }
                   },
-                  required: ["scene_id", "narrative_description"]
+                   required: ["scene_id", "narrative_description", "core_questions"]
                 }
               },
               subtitles: {
@@ -632,7 +671,7 @@ Video Metadata:
     );
 
     const responseText = response.text || "";
-    const parsedData = JSON.parse(responseText);
+     const parsedData = completeSceneAnswers(JSON.parse(responseText), scenesInput || []);
 
     if (parsedData.scenes && Array.isArray(parsedData.scenes)) {
       parsedData.scenes = parsedData.scenes.map((sc: any, i: number) => ({

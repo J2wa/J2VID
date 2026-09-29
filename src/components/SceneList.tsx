@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Film, Edit3, Plus, Trash2, Search, RefreshCw, Send, Sparkles, Image as ImageIcon, Copy, Check } from 'lucide-react';
-import { SceneAnnotation } from '../types';
+import { SceneAnnotation, SEGMENT_QUESTIONS } from '../types';
 
 interface SceneListProps {
   scenes: SceneAnnotation[];
@@ -159,6 +159,16 @@ export const SceneList: React.FC<SceneListProps> = ({
                 )}
 
                 {/* Generated Factual Description */}
+                {scene.core_questions && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800">
+                    {SEGMENT_QUESTIONS.map(({ key, label }) => (
+                      <div key={key} className="text-xs">
+                        <span className="font-semibold text-indigo-300">{label}</span>
+                        <p className="text-zinc-300 mt-1 whitespace-pre-wrap">{scene.core_questions?.[key] || 'Not answered'}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 block">
