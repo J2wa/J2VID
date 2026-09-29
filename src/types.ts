@@ -27,6 +27,7 @@ export interface SceneAnnotation {
   start_time?: string;
   end_time?: string;
   narrative_description: string;
+  core_questions?: SegmentQuestions;
   start_image?: string; // Base64 snapshot image URL
   snapshot_image?: string; // Base64 snapshot image URL
   raw_description?: string; // Tagalog or English initial draft/guidance
@@ -40,9 +41,28 @@ export interface SceneInput {
   start_image?: string; // Base64 snapshot image URL
   snapshot_image?: string; // Base64 snapshot image URL
   raw_description: string; // Tagalog or English guidance / action draft
+  core_questions?: SegmentQuestions;
   initial_background?: string;
   frame_count?: number; // Optional frame count/number for sorting
 }
+
+export interface SegmentQuestions {
+  setting?: string;
+  perspective?: string;
+  subject?: string;
+  action?: string;
+  environment?: string;
+  change?: string;
+}
+
+export const SEGMENT_QUESTIONS: { key: keyof SegmentQuestions; label: string; hint: string }[] = [
+  { key: 'setting', label: 'Where am I? (Setting)', hint: 'Place or scene context' },
+  { key: 'perspective', label: 'How am I seeing it? (Perspective)', hint: 'Camera angle, framing, or point of view' },
+  { key: 'subject', label: 'Who or what do I notice? (Subject)', hint: 'Visible people, objects, or focal subjects' },
+  { key: 'action', label: 'What is happening? (Action)', hint: 'Visible action or supplied event guidance' },
+  { key: 'environment', label: 'What else is happening? (Environment)', hint: 'Background activity, lighting, or surroundings' },
+  { key: 'change', label: 'What changed? (Change)', hint: 'Difference from the previous segment, if observable' }
+];
 
 export interface SubtitleAnnotation {
   subtitle_id: number;

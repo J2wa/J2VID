@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Sparkles, Plus, Trash2, Upload, Image as ImageIcon, Globe, Play, ArrowUpDown, Layers, CheckCircle2, Music } from 'lucide-react';
-import { SceneInput } from '../types';
+import { SceneInput, SEGMENT_QUESTIONS } from '../types';
 
 interface EventSetupModalProps {
   isOpen: boolean;
@@ -514,6 +514,26 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
                   <p className="text-[10px] text-zinc-500">
                     Tagalog input will be translated to English and formatted strictly according to non-speculative factual video annotation guidelines.
                   </p>
+                </div>
+                <div className="space-y-2 border-t border-zinc-800 pt-3">
+                  <h4 className="text-xs font-bold text-indigo-200">Six segment questions</h4>
+                  <p className="text-[11px] text-zinc-400">Optional: enter what you know. AI fills blank answers during processing from the snapshot and guidance.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {SEGMENT_QUESTIONS.map(({ key, label, hint }) => (
+                      <label key={key} className="block text-[11px] font-semibold text-zinc-300">
+                        {label}
+                        <textarea
+                          value={scene.core_questions?.[key] || ''}
+                          onChange={(e) => handleUpdateScene(scene.id, {
+                            core_questions: { ...scene.core_questions, [key]: e.target.value }
+                          })}
+                          rows={2}
+                          placeholder={hint}
+                          className="mt-1 w-full bg-zinc-900 border border-zinc-700 text-zinc-100 p-2 rounded-lg text-xs focus:outline-none focus:border-indigo-500"
+                        />
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}

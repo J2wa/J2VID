@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Film } from 'lucide-react';
-import { SceneAnnotation } from '../types';
+import { SceneAnnotation, SegmentQuestions, SEGMENT_QUESTIONS } from '../types';
 
 interface ManualAnnotationEditorProps {
   isOpen: boolean;
@@ -18,14 +18,17 @@ export const ManualAnnotationEditor: React.FC<ManualAnnotationEditorProps> = ({
 }) => {
   const [sceneId, setSceneId] = useState(1);
   const [narrative, setNarrative] = useState('');
+  const [answers, setAnswers] = useState<SegmentQuestions>({});
 
   useEffect(() => {
     if (initialScene) {
       setSceneId(initialScene.scene_id);
       setNarrative(initialScene.narrative_description);
+      setAnswers(initialScene.core_questions || {});
     } else {
       setSceneId(1);
       setNarrative('');
+      setAnswers({});
     }
   }, [initialScene, isOpen]);
 
@@ -36,14 +39,15 @@ export const ManualAnnotationEditor: React.FC<ManualAnnotationEditorProps> = ({
     onSaveScene({
       ...(initialScene || {}),
       scene_id: Number(sceneId),
-      narrative_description: narrative
+      narrative_description: narrative,
+      core_questions: answers
     });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 overflow-hidden relative">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative">
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <Film className="w-5 h-5 text-indigo-400" />
@@ -74,6 +78,21 @@ export const ManualAnnotationEditor: React.FC<ManualAnnotationEditorProps> = ({
               placeholder="Describe background setting, subjects, movements, postures, and chronological actions..."
               className="w-full bg-zinc-950 border border-zinc-800 text-zinc-100 p-3 rounded-lg text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {SEGMENT_QUESTIONS.map(({ key, label, hint }) => (
+              <label key={key} className="text-zinc-300 font-semibold">
+                {label}
+                <textarea
+                  value={answers[key] || ''}
+                  onChange={(e) => setAnswers((previous) => ({ ...previous, [key]: e.target.value }))}
+                  rows={2}
+                  placeholder={hint}
+                  className="mt-1 w-full bg-zinc-950 border border-zinc-800 text-zinc-100 p-2 rounded-lg text-xs focus:outline-none focus:border-indigo-500"
+                />
+              </label>
+            ))}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
