@@ -324,71 +324,24 @@ export default function App() {
     }
   };
 
-  const translateTagalogFallback = (text: string): string => {
-    if (!text || !text.trim()) return '';
-    let translated = text
-      .replace(/May dalawang tao/gi, 'There are two people')
-      .replace(/May isang tao/gi, 'There is one person')
-      .replace(/May/gi, 'There are')
-      .replace(/sa parke/gi, 'in the park')
-      .replace(/Ang lalaki na naka-asul na jacket/gi, 'The man wearing a blue jacket')
-      .replace(/Ang lalaki sa bisikleta/gi, 'The man on the bicycle')
-      .replace(/Ang lalaki/gi, 'The man')
-      .replace(/Ang babae/gi, 'The woman')
-      .replace(/na naka-dilaw na damit/gi, 'wearing yellow clothing')
-      .replace(/ay nakatayo/gi, 'is standing')
-      .replace(/sa tabi ng bisikleta/gi, 'beside a bicycle')
-      .replace(/habang humahawak ng kape/gi, 'while holding a coffee cup')
-      .replace(/Pagkatapos ay sumakay siya/gi, 'He then mounts')
-      .replace(/sa bisikleta at dahan-dahang pumadyak/gi, 'the bicycle and slowly pedals forward')
-      .replace(/pumadyak palabas/gi, 'pedals away towards the edge')
-      .replace(/sa gilid ng parke/gi, 'of the park')
-      .replace(/habang ang babae/gi, 'while the woman')
-      .replace(/ay kumakaway sa kanya/gi, 'waves at him')
-      .replace(/Isang lalaki na may hawak na tamborin/gi, 'A man holding a tambourine')
-      .replace(/ang lumapit at sumabay sa pagtugtog/gi, 'approaches and joins the performance')
-      .replace(/habang ang mga tao ay pumapalakpak/gi, 'while spectators applaud');
-
-    return translated;
-  };
-
-  const buildFallbackResult = (inputs: SceneInput[], totalSec: number, bg?: string): VideoAnnotationResult => {
-    return {
-      video_duration: formatSecondsToTimestamp(totalSec),
-      suitability: {
-        status: 'suitable',
-        category: 'Live Performance',
-        confidence: 0.98,
-        reason: 'Processed scene snapshot inputs with visual entity annotation and bilingual Tagalog-to-English translation.'
-      },
-      scenes: inputs.map((sc, idx) => {
-        let narrative = '';
-        if (sc.raw_description && sc.raw_description.trim()) {
-          const translated = translateTagalogFallback(sc.raw_description.trim());
-          narrative = translated || sc.raw_description.trim();
-          if (!narrative.endsWith('.')) narrative += '.';
-          narrative += ` The frame captures focal subjects positioned within the scene with verified clothing attire, posture, and facial expressions.`;
-        } else {
-          const frameLabel = sc.frame_count !== undefined ? `Frame #${sc.frame_count}` : `Snapshot Frame`;
-          narrative = `Scene #${idx + 1} (${frameLabel}): Detailed visual snapshot frame capturing focal subjects positioned in the center, exhibiting specific body posture, apparel, and hand orientation. The visual setting reveals clear architectural and environmental details with natural ambient lighting and balanced depth of field.`;
-        }
-
-        if (bg && !narrative.toLowerCase().includes('background') && !narrative.toLowerCase().includes('setting')) {
-          narrative += ` Background setting context: ${bg}.`;
-        }
-
-        return {
-          scene_id: sc.scene_id || idx + 1,
-          narrative_description: narrative,
-          start_image: sc.start_image || sc.snapshot_image,
-          snapshot_image: sc.start_image || sc.snapshot_image,
-           raw_description: sc.raw_description,
-           core_questions: sc.core_questions
-        };
-      }),
-      subtitles: []
-    };
-  };
+  const buildFallbackResult = (inputs: SceneInput[], totalSec: number, _bg?: string): VideoAnnotationResult => ({
+    video_duration: formatSecondsToTimestamp(totalSec),
+    suitability: {
+      status: 'suitable',
+      category: null,
+      confidence: 0,
+      reason: 'AI processing failed. Scene descriptions have not been generated.'
+    },
+    scenes: inputs.map((sc, idx) => ({
+      scene_id: sc.scene_id || idx + 1,
+      narrative_description: 'Scene description unavailable because AI processing failed.',
+      start_image: sc.start_image || sc.snapshot_image,
+      snapshot_image: sc.start_image || sc.snapshot_image,
+      raw_description: sc.raw_description,
+      core_questions: sc.core_questions
+    })),
+    subtitles: []
+  });
 
   const updateStepStatus = (index: number, status: 'in_progress' | 'completed' | 'failed', logs: string[]) => {
     setAgentSteps((prev) =>

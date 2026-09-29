@@ -3,6 +3,7 @@ import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { accessApp, requireSession } from './lib/access.js';
+import { sceneStyleInstruction, subtitleStyleInstruction, normalizeSubtitles } from './lib/annotationConventions.js';
 
 dotenv.config();
 
@@ -321,6 +322,13 @@ apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
       });
     }
 
+    if (req.body.audioData && !geminiKey) {
+      return res.status(422).json({ error: "A Gemini API key is required to analyze the uploaded audio track and generate subtitles." });
+    }
+    if (req.body.audioData && isOpenRouterModel(targetModel)) {
+      targetModel = "gemini-3.8-flash";
+    }
+
     // If simulate discard is requested
     if (simulateDiscard) {
       return res.json({
@@ -347,13 +355,15 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
 2. TRANSLATION: Translate any user guidance written in Tagalog (or Taglish) into clear, fluent, professional, objective English.
 3. DETAILED FACTUAL VISUAL DESCRIPTION GUIDELINES:
    - Carefully inspect the scene snapshot image for all visible entities, subjects, clothing, hair, posture, expressions, body orientation, gestures, and background setting.
-   - Write a rich, highly detailed, multi-sentence visual narrative (aim for 3 to 5 comprehensive sentences per scene).
+   - Write a factual, flowing video scene narrative using active verbs and present tense. Include only supported details.
    - Subject Details: Describe subject gender/age group, exact clothing garments, colors, patterns, footwear, hairstyle, facial posture, hand positions, and focal physical actions.
    - Spatial & Object Composition: Detail held items, props, furniture, machinery, or tools, specifying relative positioning (foreground, center, background, left/right).
    - Environmental Setting: Describe the physical environment (indoor/outdoor, architectural details, flooring, foliage, weather, lighting, color tone, and background context).
-   - Combine the visual evidence from the snapshot image with the translated guidance into a dense, highly detailed, factual English visual narrative.
+   - Use the visual evidence and translated guidance to describe the scene and its action, not the image as an object.
+ ${sceneStyleInstruction}
  4. DO NOT HALLUCINATE: Never invent unverified actions, emotions, internal motives, or subjective interpretations. Do NOT name real people, brand logos, or unverified locations.
  For EVERY scene, answer six separate questions in core_questions: setting (where am I?), perspective (how am I seeing it, including framing/angle), subject (who or what do I notice?), action (what is happening?), environment (what else is happening?), change (what changed from the previous scene?). Preserve the user's nonblank answers; fill blanks from the snapshot and guidance. A single still cannot prove motion or change. If evidence is insufficient, state "Cannot determine from the provided material." Keep answers specific to each scene.
+ SUBTITLES: ${subtitleStyleInstruction}
 5. Produce strictly structured JSON conforming to the following format:
 {
   "video_duration": "${durationFormatted}",
@@ -415,15 +425,15 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
           }
         }
       });
-      scenesText += `\nExamine the attached snapshot images carefully and output detailed factual visual narrative descriptions for each scene in the JSON 'scenes' array.`;
+      scenesText += `\nUse the attached snapshots as evidence to write video scene narratives for each entry. Describe the setting, subjects, actions, camera view, surroundings and supported change; do not describe the snapshots as images.`;
     } else {
       scenesText = customPrompt || `Analyze the footage/scenes (duration: ${durationFormatted}). Return structured JSON.`;
     }
 
     // Determine provider execution: OpenRouter vs Google Gemini
-    const useOpenRouter =
+    const useOpenRouter = !req.body.audioData && (
       isOpenRouterModel(targetModel) ||
-      (!geminiKey && Boolean(openRouterKey));
+      (!geminiKey && Boolean(openRouterKey)));
 
     if (useOpenRouter) {
       if (!openRouterKey) {
@@ -470,7 +480,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
             parsedData._fellBackFrom = targetModel;
           }
 
-           return res.json(completeSceneAnswers(parsedData, scenesInput || []));
+           return res.json(normalizeSubtitles(completeSceneAnswers(parsedData, scenesInput || [])));
         } catch (orErr: any) {
           console.warn("[OpenRouter Error]", orErr.message);
           if (autoFallback && geminiKey) {
@@ -491,7 +501,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
             parsedData._modelUsed = fallbackOrModel;
             parsedData._fellBackFrom = effectiveOpenRouterModel;
             parsedData._provider = "openrouter";
-             return res.json(completeSceneAnswers(parsedData, scenesInput || []));
+             return res.json(normalizeSubtitles(completeSceneAnswers(parsedData, scenesInput || [])));
           } else {
             throw orErr;
           }
@@ -530,13 +540,13 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
         }
       });
       parts.push({
-        text: `[AUDIO TRACK ATTACHED]: Listen to the attached audio file. Transcribe spoken dialogue, vocal sounds, and audio cues into the 'subtitles' array with accurate start_time (HH:MM:SS.mmm), end_time (HH:MM:SS.mmm), type ('Spoken words', 'Music', 'Sound effect', etc.), and text.`
+        text: `[AUDIO TRACK ATTACHED]: Listen to the audio and create accurately timed subtitles for English speech, non-English speech, vocal sounds and other audible cues. ${subtitleStyleInstruction}`
       });
     }
 
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
       parts.push({
-        text: `You are analyzing a sequence of scene snapshot images and user action guidance notes. Generate an exceptionally detailed, comprehensive, multi-sentence factual visual narrative (3-5 rich sentences minimum per scene) in fluent English, translating any Tagalog guidance into English and thoroughly describing all observable visual details from the snapshot image.`
+        text: `Analyze each scene using its snapshot and user guidance. Translate Tagalog guidance to English, then write a factual video scene narrative with active verbs. ${sceneStyleInstruction}`
       });
 
       scenesInput.forEach((sc: any, idx: number) => {
@@ -579,7 +589,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
       });
 
       parts.push({
-        text: `\nCRITICAL INSTRUCTIONS FOR GEMINI:\n1. For each scene, translate any Tagalog text into clear, fluent, professional English.\n2. Examine the scene snapshot image in high detail: describe subject gender/age, attire, hair, facial expression, posture, hand gestures, active movements, held props, background architectural/environmental context, and lighting.\n3. Combine image visual facts with translated guidance into an exceptionally detailed, 3-to-5 sentence objective, non-speculative English visual narrative.\n4. Output JSON containing a 'scenes' array with 'scene_id', 'narrative_description', and six 'core_questions' answers: setting, perspective, subject, action, environment, change. Preserve nonblank user answers, fill blank answers from evidence, and say when a change cannot be determined.`
+        text: `\nCRITICAL INSTRUCTIONS FOR GEMINI:\n1. Translate Tagalog guidance into clear English.\n2. Describe the scene with active verbs, leading with setting, subject and action; include camera composition, secondary activity and supported changes. Avoid phrases that call it an image or snapshot.\n3. Do not infer unobserved motion or transitions from a single still.\n4. Output each scene's narrative_description and all six core_questions. Preserve nonblank user answers and fill blanks only from evidence. ${sceneStyleInstruction}`
       });
     } else {
       if (videoData && mimeType) {
@@ -655,10 +665,11 @@ Video Metadata:
                     subtitle_id: { type: Type.INTEGER },
                     start_time: { type: Type.STRING },
                     end_time: { type: Type.STRING },
-                    type: { type: Type.STRING },
-                    text: { type: Type.STRING }
+                     type: { type: Type.STRING },
+                     text: { type: Type.STRING },
+                     language: { type: Type.STRING, description: "English, non-English, or none; split mixed-language speech into separately timed entries" }
                   },
-                  required: ["subtitle_id", "start_time", "end_time", "type", "text"]
+                   required: ["subtitle_id", "start_time", "end_time", "type", "text", "language"]
                 }
               }
             },
@@ -671,7 +682,7 @@ Video Metadata:
     );
 
     const responseText = response.text || "";
-     const parsedData = completeSceneAnswers(JSON.parse(responseText), scenesInput || []);
+     const parsedData = normalizeSubtitles(completeSceneAnswers(JSON.parse(responseText), scenesInput || []));
 
     if (parsedData.scenes && Array.isArray(parsedData.scenes)) {
       parsedData.scenes = parsedData.scenes.map((sc: any, i: number) => ({
@@ -752,6 +763,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
     revisionPrompt += `1. Apply the user's feedback precisely to refine and rewrite the visual description.\n`;
     revisionPrompt += `2. Translate any Tagalog revision instructions into clear, professional English.\n`;
     revisionPrompt += `3. Adhere strictly to factual video annotation guidelines (objective visual description, no speculation, clear subject & background details).\n`;
+    revisionPrompt += `Scene narrative style: ${sceneStyleInstruction}\n`;
     revisionPrompt += `4. Return ONLY a JSON object with key "revised_description": {"revised_description": "..."}\n`;
 
     const useOpenRouter =
@@ -839,6 +851,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
 // Audio MP3 Subtitle Transcription API Endpoint
 apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
   let targetModel = sanitizeModel(req.body.model, "gemini-3.5-transcribe");
+  if (isOpenRouterModel(targetModel)) targetModel = "gemini-3.8-flash";
   const autoFallback = req.body.autoFallback !== false;
 
   try {
@@ -888,13 +901,14 @@ apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) 
 
     parts.push({
       text: `Listen carefully to this uploaded audio file (${fileName || "uploaded audio track"}).
-Transcribe all spoken dialogue, vocal sounds, music cues, and sound effects with accurate timestamps.
+Transcribe all spoken dialogue, vocal sounds, music cues, and sound effects with accurate timestamps. ${subtitleStyleInstruction}
 Output a JSON object containing a 'subtitles' array, where each item has:
 - subtitle_id: number (1, 2, 3...)
 - start_time: timestamp string in format "HH:MM:SS.mmm" (e.g., "00:00:01.500")
 - end_time: timestamp string in format "HH:MM:SS.mmm" (e.g., "00:00:04.200")
 - type: string ('Spoken words', 'Music', 'Sound effect', 'Ambient sound', 'Vocal sound', or 'Other')
-- text: transcribed words or audio description in clear English/original language.`
+- text: English words, [Speaking non-English] for non-English speech, or a concise bracketed audio description.
+- language: "English", "non-English", or "none". Split mixed-language speech into separately timed entries.`
     });
 
     const { response, modelUsed, fellBack, originalModel } = await runGeminiWithFallback(
@@ -902,7 +916,7 @@ Output a JSON object containing a 'subtitles' array, where each item has:
       {
         contents: { parts },
         config: {
-          systemInstruction: "You are an expert audio transcription and subtitling AI. Convert spoken audio tracks into precise timed subtitles with timestamps and category tags.",
+          systemInstruction: `You are an expert audio transcription and subtitling AI. Convert speech and audible cues into precisely timed subtitles. ${subtitleStyleInstruction}`,
           temperature: 0.1,
           responseMimeType: "application/json",
           responseSchema: {
@@ -917,9 +931,10 @@ Output a JSON object containing a 'subtitles' array, where each item has:
                     start_time: { type: Type.STRING },
                     end_time: { type: Type.STRING },
                     type: { type: Type.STRING },
-                    text: { type: Type.STRING }
+                    text: { type: Type.STRING },
+                    language: { type: Type.STRING, description: "English, non-English, or none; split mixed-language speech into separate entries" }
                   },
-                  required: ["subtitle_id", "start_time", "end_time", "type", "text"]
+                  required: ["subtitle_id", "start_time", "end_time", "type", "text", "language"]
                 }
               }
             },
@@ -931,7 +946,7 @@ Output a JSON object containing a 'subtitles' array, where each item has:
       autoFallback
     );
 
-    const parsedData = JSON.parse(response.text || "{}");
+    const parsedData = normalizeSubtitles(JSON.parse(response.text || "{}"));
     parsedData._modelUsed = modelUsed;
     if (fellBack) {
       parsedData._fellBackFrom = originalModel;
