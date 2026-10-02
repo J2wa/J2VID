@@ -23,7 +23,7 @@ export function validateAnnotationResult(result: VideoAnnotationResult): Validat
       });
     }
 
-    result.scenes.forEach((scene, index) => {
+    (result.scenes || []).forEach((scene, index) => {
       // ID Sequential Check
       if (scene.scene_id !== index + 1) {
         errors.push({
@@ -41,8 +41,31 @@ export function validateAnnotationResult(result: VideoAnnotationResult): Validat
           message: `Scene ${scene.scene_id} narrative description is short or missing.`
         });
       }
+      const description = scene.narrative_description || '';
+      if (/\b(this image|the snapshot|the camera shows|not provided|not specified)\b/i.test(description)) {
+        errors.push({ type: 'warning', field: `scenes[${index}].narrative_description`,
+          message: 'Use direct video-event wording and remove empty filler.' });
+      }
+      if (description.trim() && result.scenes.slice(0, index).some(previous =>
+        previous.narrative_description?.trim().toLowerCase() === description.trim().toLowerCase())) {
+        errors.push({ type: 'warning', field: `scenes[${index}].narrative_description`,
+          message: 'Repeated description: verify that this scene has its own observations.' });
+      }
     });
   }
+
+  (result.subtitles || []).forEach((sub, index) => {
+    const pattern = /^\d{2,}:[0-5]\d:[0-5]\d\.\d{3}$/;
+    if (!sub.text?.trim() || !pattern.test(sub.start_time) || !pattern.test(sub.end_time) ||
+        parseTimestampToSeconds(sub.end_time) <= parseTimestampToSeconds(sub.start_time)) {
+      errors.push({ type: 'error', field: `subtitles[${index}]`,
+        message: 'Subtitle needs text and a valid start/end range in HH:MM:SS.mmm.' });
+    }
+    if ((sub.text || '').split('\n').length > 3) {
+      errors.push({ type: 'warning', field: `subtitles[${index}].text`,
+        message: 'Split long speech into subtitles of about two to three lines.' });
+    }
+  });
 
   return errors;
 }
