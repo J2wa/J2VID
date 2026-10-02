@@ -42,47 +42,37 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
       setUploadedAudioUrl(audioObjectUrl);
       setUploadedAudioName(file.name);
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const dataUrl = e.target?.result as string;
-        try {
-          const res = await fetch('/api/transcribe-audio', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
-            body: JSON.stringify({
-              audioData: dataUrl,
-              audioMimeType: file.type || 'audio/mp3',
-              fileName: file.name,
-              model: selectedModel,
-              autoFallback
-            })
-          });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || 'Transcription failed');
-          }
-
-          const data = await res.json();
-          if (data.subtitles && Array.isArray(data.subtitles) && onSubtitlesGenerated) {
-            onSubtitlesGenerated(data.subtitles);
-            setTranscribeNotice(`Successfully transcribed ${data.subtitles.length} subtitle entries from ${file.name}!`);
-          } else {
-            setTranscribeNotice('Subtitles generated successfully!');
-          }
-        } catch (err: any) {
-          console.error('Error transcribing audio:', err);
-          setTranscribeNotice(`Error: ${err.message || 'Failed to transcribe audio'}`);
-        } finally {
-          setIsTranscribing(false);
-          setTimeout(() => setTranscribeNotice(null), 6000);
-        }
-      };
-      reader.readAsDataURL(file);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Could not read the audio file.'));
+        reader.onabort = () => reject(new Error('Audio file reading was cancelled.'));
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch('/api/transcribe-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
+        body: JSON.stringify({ audioData: dataUrl, audioMimeType: file.type || 'audio/mpeg',
+          fileName: file.name, autoFallback })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || (res.status === 413
+          ? 'Audio upload is too large. Split the audio into smaller files and retry.'
+          : res.status === 504 ? 'Transcription timed out. Try a shorter audio file.'
+          : 'Transcription failed. Please retry.'));
+      }
+      if (!Array.isArray(data?.subtitles)) throw new Error('The server returned no subtitle array.');
+      onSubtitlesGenerated?.(data.subtitles);
+      setTranscribeNotice(data.subtitles.length
+        ? `Generated ${data.subtitles.length} subtitles from ${file.name}. Review the wording and timing against the audio.`
+        : 'No relevant speech or sound cues detected. Review the audio to confirm.');
     } catch (err: any) {
       console.error('Error reading MP3 file:', err);
       setIsTranscribing(false);
-      setTranscribeNotice('Failed to read MP3 file');
+      setTranscribeNotice(`Error: ${err.message || 'Failed to transcribe audio'}`);
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -290,3 +280,4 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
     </div>
   );
 };
+

@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES } from './lib/annotation-guidelines.js';
+import { selectAudioModel, parseAudioInput, normalizeSubtitles } from './lib/subtitles.js';
 import { accessApp, requireSession } from './lib/access.js';
 
 dotenv.config();
@@ -255,6 +257,7 @@ apiRouter.get(["/health", "/api/health"], (req, res) => {
     hasApiKey: !!(geminiKey || openRouterKey),
     hasGeminiKey: !!geminiKey,
     hasOpenRouterKey: !!openRouterKey,
+    hasAudioKey: !!(process.env.GEMINI_AUDIO_API_KEY?.trim() || geminiKey),
     keyConfigured: !!(geminiKey || openRouterKey),
     availableGeminiModels: VALID_GEMINI_MODELS,
     availableOpenRouterModels: VALID_OPENROUTER_MODELS,
@@ -306,24 +309,17 @@ apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
       });
     }
 
+    // Keep audio processing independent of the selected scene provider.
+    const audioResult = req.body.audioData
+      ? await transcribeAudio(req.body.audioData, req.body.audioMimeType, undefined, autoFallback)
+      : null;
     const durationFormatted = formatSecondsToTimestamp(durationSeconds || 30);
 
     const systemInstruction = `
-You are J2 Clips, an autonomous multimodal video and scene snapshot annotation agent.
-Your primary directive is ZERO-HALLUCINATION DETAILED FACTUAL ANNOTATION, BILINGUAL TAGALOG-TO-ENGLISH TRANSLATION, REWRITING, and SCENE SNAPSHOT VISUAL ENTITY AND ACTION TRACKING.
-
-BILINGUAL INPUT & REWRITING PROTOCOL:
-1. Each scene requires a single snapshot image and optional action guidance/draft provided in Tagalog or English.
-2. TRANSLATION: Translate any user guidance written in Tagalog (or Taglish) into clear, fluent, professional, objective English.
-3. DETAILED FACTUAL VISUAL DESCRIPTION GUIDELINES:
-   - Carefully inspect the scene snapshot image for all visible entities, subjects, clothing, hair, posture, expressions, body orientation, gestures, and background setting.
-   - Write a rich, highly detailed, multi-sentence visual narrative (aim for 3 to 5 comprehensive sentences per scene).
-   - Subject Details: Describe subject gender/age group, exact clothing garments, colors, patterns, footwear, hairstyle, facial posture, hand positions, and focal physical actions.
-   - Spatial & Object Composition: Detail held items, props, furniture, machinery, or tools, specifying relative positioning (foreground, center, background, left/right).
-   - Environmental Setting: Describe the physical environment (indoor/outdoor, architectural details, flooring, foliage, weather, lighting, color tone, and background context).
-   - Combine the visual evidence from the snapshot image with the translated guidance into a dense, highly detailed, factual English visual narrative.
-4. DO NOT HALLUCINATE: Never invent unverified actions, emotions, internal motives, or subjective interpretations. Do NOT name real people, brand logos, or unverified locations.
-5. Produce strictly structured JSON conforming to the following format:
+You are J2 Clips, a video annotation assistant. Generated annotations require human verification.
+${SCENE_GUIDELINES}
+${SUBTITLE_GUIDELINES}
+Produce strictly structured JSON conforming to the following format:
 {
   "video_duration": "${durationFormatted}",
   "suitability": {
@@ -422,8 +418,8 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
           if (parsedData.scenes && Array.isArray(parsedData.scenes)) {
             parsedData.scenes = parsedData.scenes.map((sc: any, i: number) => ({
               ...sc,
-              start_time: sc.start_time || `00:00:${(i * 5).toString().padStart(2, '0')}.000`,
-              end_time: sc.end_time || `00:00:${((i + 1) * 5).toString().padStart(2, '0')}.000`
+              start_time: scenesInput?.find((input: any) => input.scene_id === sc.scene_id)?.start_time || sc.start_time,
+              end_time: scenesInput?.find((input: any) => input.scene_id === sc.scene_id)?.end_time || sc.end_time
             }));
           }
 
@@ -437,6 +433,12 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
             parsedData._fellBackFrom = targetModel;
           }
 
+          if (req.body.audioData) {
+            parsedData.subtitles = audioResult.subtitles;
+            parsedData._audioModelUsed = audioResult._modelUsed;
+          } else {
+            parsedData.subtitles = normalizeSubtitles(parsedData.subtitles || []);
+          }
           return res.json(parsedData);
         } catch (orErr: any) {
           console.warn("[OpenRouter Error]", orErr.message);
@@ -458,7 +460,13 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
             parsedData._modelUsed = fallbackOrModel;
             parsedData._fellBackFrom = effectiveOpenRouterModel;
             parsedData._provider = "openrouter";
-            return res.json(parsedData);
+            if (req.body.audioData) {
+            parsedData.subtitles = audioResult.subtitles;
+            parsedData._audioModelUsed = audioResult._modelUsed;
+          } else {
+            parsedData.subtitles = normalizeSubtitles(parsedData.subtitles || []);
+          }
+          return res.json(parsedData);
           } else {
             throw orErr;
           }
@@ -478,32 +486,9 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
 
     const parts: any[] = [];
 
-    // Attach MP3 / Audio Data if present
-    if (req.body.audioData) {
-      let base64Audio = req.body.audioData;
-      let audioMime = req.body.audioMimeType || "audio/mp3";
-      if (typeof base64Audio === 'string' && base64Audio.includes(',')) {
-        const audioParts = base64Audio.split(',');
-        base64Audio = audioParts[1];
-        const mimeMatch = audioParts[0].match(/data:(audio\/[a-zA-Z0-9\+\-\.]+);/);
-        if (mimeMatch) {
-          audioMime = mimeMatch[1];
-        }
-      }
-      parts.push({
-        inlineData: {
-          mimeType: audioMime,
-          data: base64Audio
-        }
-      });
-      parts.push({
-        text: `[AUDIO TRACK ATTACHED]: Listen to the attached audio file. Transcribe spoken dialogue, vocal sounds, and audio cues into the 'subtitles' array with accurate start_time (HH:MM:SS.mmm), end_time (HH:MM:SS.mmm), type ('Spoken words', 'Music', 'Sound effect', etc.), and text.`
-      });
-    }
-
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
       parts.push({
-        text: `You are analyzing a sequence of scene snapshot images and user action guidance notes. Generate an exceptionally detailed, comprehensive, multi-sentence factual visual narrative (3-5 rich sentences minimum per scene) in fluent English, translating any Tagalog guidance into English and thoroughly describing all observable visual details from the snapshot image.`
+        text: `You are analyzing a sequence of scene snapshot images and user action guidance notes. Apply the shared scene guidelines. Write natural English descriptions, using only supported observations and supplied action context.`
       });
 
       scenesInput.forEach((sc: any, idx: number) => {
@@ -545,7 +530,7 @@ BILINGUAL INPUT & REWRITING PROTOCOL:
       });
 
       parts.push({
-        text: `\nCRITICAL INSTRUCTIONS FOR GEMINI:\n1. For each scene, translate any Tagalog text into clear, fluent, professional English.\n2. Examine the scene snapshot image in high detail: describe subject gender/age, attire, hair, facial expression, posture, hand gestures, active movements, held props, background architectural/environmental context, and lighting.\n3. Combine image visual facts with translated guidance into an exceptionally detailed, 3-to-5 sentence objective, non-speculative English visual narrative.\n4. Output JSON containing a 'scenes' array with 'scene_id' and 'narrative_description'.`
+        text: `${SCENE_GUIDELINES}\nReturn the full annotation JSON including scenes and supplied boundaries.`
       });
     } else {
       if (videoData && mimeType) {
@@ -637,8 +622,8 @@ Video Metadata:
     if (parsedData.scenes && Array.isArray(parsedData.scenes)) {
       parsedData.scenes = parsedData.scenes.map((sc: any, i: number) => ({
         ...sc,
-        start_time: sc.start_time || `00:00:${(i * 5).toString().padStart(2, '0')}.000`,
-        end_time: sc.end_time || `00:00:${((i + 1) * 5).toString().padStart(2, '0')}.000`
+        start_time: scenesInput?.find((input: any) => input.scene_id === sc.scene_id)?.start_time || sc.start_time,
+        end_time: scenesInput?.find((input: any) => input.scene_id === sc.scene_id)?.end_time || sc.end_time
       }));
     }
 
@@ -652,7 +637,13 @@ Video Metadata:
       parsedData._fellBackFrom = originalModel;
     }
 
-    return res.json(parsedData);
+    if (req.body.audioData) {
+            parsedData.subtitles = audioResult.subtitles;
+            parsedData._audioModelUsed = audioResult._modelUsed;
+          } else {
+            parsedData.subtitles = normalizeSubtitles(parsedData.subtitles || []);
+          }
+          return res.json(parsedData);
   } catch (error: any) {
     console.error("Error in /api/annotate-video:", error);
     const quotaExhausted = isQuotaError(error);
@@ -709,7 +700,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
       revisionPrompt += `INITIAL USER GUIDANCE (Tagalog/English):\n"${rawDescription}"\n\n`;
     }
     revisionPrompt += `USER REVISION INSTRUCTIONS / FEEDBACK (Tagalog or English):\n"${feedback}"\n\n`;
-    revisionPrompt += `INSTRUCTIONS:\n`;
+    revisionPrompt += `${SCENE_GUIDELINES}\nINSTRUCTIONS:\n`;
     revisionPrompt += `1. Apply the user's feedback precisely to refine and rewrite the visual description.\n`;
     revisionPrompt += `2. Translate any Tagalog revision instructions into clear, professional English.\n`;
     revisionPrompt += `3. Adhere strictly to factual video annotation guidelines (objective visual description, no speculation, clear subject & background details).\n`;
@@ -797,25 +788,10 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
   }
 });
 
-// Audio MP3 Subtitle Transcription API Endpoint
-apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
-  let targetModel = sanitizeModel(req.body.model, "gemini-3.5-transcribe");
-  const autoFallback = req.body.autoFallback !== false;
-
-  try {
-    const { audioData, audioMimeType, fileName } = req.body;
-
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-      return res.status(500).json({
-        error: "GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
-      });
-    }
-
-    if (!audioData) {
-      return res.status(400).json({ error: "Missing audioData in request body." });
-    }
-
+export async function transcribeAudio(audioData: unknown, audioMimeType?: string, requestedModel?: string, autoFallback = true) {
+    const apiKey = (process.env.GEMINI_AUDIO_API_KEY || getGeminiApiKey()).trim();
+    if (!apiKey) throw new Error('Audio subtitles require GEMINI_AUDIO_API_KEY or GEMINI_API_KEY. The OpenRouter key handles scene descriptions only.');
+    const targetModel = selectAudioModel(process.env.GEMINI_AUDIO_MODEL || requestedModel);
     const ai = new GoogleGenAI({
       apiKey,
       httpOptions: {
@@ -825,17 +801,7 @@ apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) 
       }
     });
 
-    let base64Audio = audioData;
-    let mimeType = audioMimeType || "audio/mp3";
-
-    if (typeof audioData === "string" && audioData.includes(",")) {
-      const audioParts = audioData.split(",");
-      base64Audio = audioParts[1];
-      const mimeMatch = audioParts[0].match(/data:(audio\/[a-zA-Z0-9\+\-\.]+);/);
-      if (mimeMatch) {
-        mimeType = mimeMatch[1];
-      }
-    }
+    const { data: base64Audio, mimeType } = parseAudioInput(audioData, audioMimeType);
 
     const parts: any[] = [];
     if (base64Audio) {
@@ -848,14 +814,9 @@ apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) 
     }
 
     parts.push({
-      text: `Listen carefully to this uploaded audio file (${fileName || "uploaded audio track"}).
-Transcribe all spoken dialogue, vocal sounds, music cues, and sound effects with accurate timestamps.
-Output a JSON object containing a 'subtitles' array, where each item has:
-- subtitle_id: number (1, 2, 3...)
-- start_time: timestamp string in format "HH:MM:SS.mmm" (e.g., "00:00:01.500")
-- end_time: timestamp string in format "HH:MM:SS.mmm" (e.g., "00:00:04.200")
-- type: string ('Spoken words', 'Music', 'Sound effect', 'Ambient sound', 'Vocal sound', or 'Other')
-- text: transcribed words or audio description in clear English/original language.`
+      text: `${SUBTITLE_GUIDELINES}
+Return JSON with a subtitles array. Each item requires subtitle_id, start_time, end_time,
+type (Spoken words, Music, Sound effect, Ambient sound, Vocal sound or Other), and text.`
     });
 
     const { response, modelUsed, fellBack, originalModel } = await runGeminiWithFallback(
@@ -863,7 +824,7 @@ Output a JSON object containing a 'subtitles' array, where each item has:
       {
         contents: { parts },
         config: {
-          systemInstruction: "You are an expert audio transcription and subtitling AI. Convert spoken audio tracks into precise timed subtitles with timestamps and category tags.",
+          systemInstruction: SUBTITLE_GUIDELINES,
           temperature: 0.1,
           responseMimeType: "application/json",
           responseSchema: {
@@ -892,11 +853,36 @@ Output a JSON object containing a 'subtitles' array, where each item has:
       autoFallback
     );
 
-    const parsedData = JSON.parse(response.text || "{}");
+    const parsedData = extractJson(response.text || "{}");
+    parsedData.subtitles = normalizeSubtitles(parsedData.subtitles);
+    parsedData._provider = "gemini";
     parsedData._modelUsed = modelUsed;
     if (fellBack) {
       parsedData._fellBackFrom = originalModel;
     }
+    return parsedData;
+}
+
+// Audio MP3 Subtitle Transcription API Endpoint
+apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
+  let targetModel = selectAudioModel(process.env.GEMINI_AUDIO_MODEL || req.body.model);
+  const autoFallback = req.body.autoFallback !== false;
+
+  try {
+    const { audioData, audioMimeType, fileName } = req.body;
+
+    const apiKey = (process.env.GEMINI_AUDIO_API_KEY || getGeminiApiKey()).trim();
+    if (!apiKey) {
+      return res.status(500).json({
+        error: "GEMINI_AUDIO_API_KEY or GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
+      });
+    }
+
+    if (!audioData) {
+      return res.status(400).json({ error: "Missing audioData in request body." });
+    }
+
+    const parsedData = await transcribeAudio(audioData, audioMimeType, targetModel, autoFallback);
     return res.json(parsedData);
   } catch (err: any) {
     console.error("Error in /api/transcribe-audio:", err);
@@ -956,3 +942,4 @@ if (!process.env.VERCEL) {
 
 export default app;
 export { app };
+
