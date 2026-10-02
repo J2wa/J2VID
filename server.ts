@@ -3,6 +3,7 @@ import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES } from './lib/annotation-guidelines.js';
+import { getApiKeys, withApiKeyFallback, type KeyPurpose } from './lib/api-keys.js';
 import { selectAudioModel, parseAudioInput, normalizeSubtitles } from './lib/subtitles.js';
 import { accessApp, requireSession } from './lib/access.js';
 
@@ -17,23 +18,11 @@ const PORT = 3000;
  * to support Vercel and standard cloud deployment environments.
  */
 function getGeminiApiKey(): string {
-  return (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENAI_API_KEY ||
-    ""
-  ).trim();
+  return getApiKeys('gemini')[0] || '';
 }
 
-/**
- * Retrieves the OpenRouter API key from process environment variables.
- * Set via OPENROUTER_API_KEY in AI Studio settings or Vercel Environment Variables.
- */
 function getOpenRouterApiKey(): string {
-  return (
-    process.env.OPENROUTER_API_KEY ||
-    ""
-  ).trim();
+  return getApiKeys('openrouter')[0] || '';
 }
 
 // Allowed Direct Gemini Models per SDK specifications
@@ -106,7 +95,7 @@ function extractJson(text: string): any {
 /**
  * Executes a chat completion request to OpenRouter API (OpenAI compatible)
  */
-async function callOpenRouter({
+async function callOpenRouterOnce({
   model,
   systemPrompt,
   userPrompt,
@@ -187,50 +176,33 @@ async function callOpenRouter({
   return rawText;
 }
 
+async function callOpenRouter(args: Parameters<typeof callOpenRouterOnce>[0] & { autoFallback?: boolean }) {
+  return withApiKeyFallback(getApiKeys('openrouter'), apiKey =>
+    callOpenRouterOnce({ ...args, apiKey }), args.autoFallback !== false);
+}
+
 async function runGeminiWithFallback(
   ai: GoogleGenAI,
   params: any,
   requestedModel: string,
-  autoFallback = true
+  autoFallback = true,
+  purpose: KeyPurpose = 'gemini'
 ) {
+  const keys = getApiKeys(purpose);
+  const execute = (model: string) => withApiKeyFallback(keys, apiKey => {
+    const client = apiKey === keys[0] ? ai : new GoogleGenAI({ apiKey,
+      httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
+    return client.models.generateContent({ ...params, model });
+  }, autoFallback);
   try {
-    const response = await ai.models.generateContent({
-      ...params,
-      model: requestedModel
-    });
-    return {
-      response,
-      modelUsed: requestedModel,
-      fellBack: false,
-      originalModel: requestedModel
-    };
+    const response = await execute(requestedModel);
+    return { response, modelUsed: requestedModel, fellBack: false, originalModel: requestedModel };
   } catch (err: any) {
-    if (autoFallback && isQuotaError(err)) {
-      // Switch to alternative model with separate quota bucket
-      const fallbackModel =
-        requestedModel === "gemini-3.1-flash-lite"
-          ? "gemini-3.8-flash"
-          : "gemini-3.1-flash-lite";
-      console.warn(
-        `[Gemini Quota Notice] Free tier / rate limit exhausted for '${requestedModel}'. Automatically failing over to '${fallbackModel}'...`
-      );
-      try {
-        const response = await ai.models.generateContent({
-          ...params,
-          model: fallbackModel
-        });
-        return {
-          response,
-          modelUsed: fallbackModel,
-          fellBack: true,
-          originalModel: requestedModel
-        };
-      } catch (fallbackErr: any) {
-        console.error(`Fallback to '${fallbackModel}' also failed:`, fallbackErr);
-        throw fallbackErr;
-      }
-    }
-    throw err;
+    if (!autoFallback || !isQuotaError(err)) throw err;
+    const fallbackModel = requestedModel === 'gemini-3.1-flash-lite'
+      ? 'gemini-3.8-flash' : 'gemini-3.1-flash-lite';
+    const response = await execute(fallbackModel);
+    return { response, modelUsed: fallbackModel, fellBack: true, originalModel: requestedModel };
   }
 }
 
@@ -257,7 +229,7 @@ apiRouter.get(["/health", "/api/health"], (req, res) => {
     hasApiKey: !!(geminiKey || openRouterKey),
     hasGeminiKey: !!geminiKey,
     hasOpenRouterKey: !!openRouterKey,
-    hasAudioKey: !!(process.env.GEMINI_AUDIO_API_KEY?.trim() || geminiKey),
+    hasAudioKey: getApiKeys('audio').length > 0,
     keyConfigured: !!(geminiKey || openRouterKey),
     availableGeminiModels: VALID_GEMINI_MODELS,
     availableOpenRouterModels: VALID_OPENROUTER_MODELS,
@@ -410,7 +382,8 @@ Produce strictly structured JSON conforming to the following format:
             systemPrompt: systemInstruction,
             userPrompt: scenesText,
             images: openRouterImages,
-            apiKey: openRouterKey
+            apiKey: openRouterKey,
+            autoFallback
           });
 
           const parsedData = extractJson(rawText);
@@ -454,7 +427,8 @@ Produce strictly structured JSON conforming to the following format:
               systemPrompt: systemInstruction,
               userPrompt: scenesText,
               images: openRouterImages,
-              apiKey: openRouterKey
+              apiKey: openRouterKey,
+              autoFallback
             });
             const parsedData = extractJson(rawText);
             parsedData._modelUsed = fallbackOrModel;
@@ -720,7 +694,8 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
         systemPrompt: "You are an expert video annotation rewriting agent. Apply user feedback precisely and return valid JSON.",
         userPrompt: revisionPrompt,
         images,
-        apiKey: openRouterKey
+        apiKey: openRouterKey,
+        autoFallback
       });
       const parsed = extractJson(raw);
       return res.json({
@@ -789,7 +764,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
 });
 
 export async function transcribeAudio(audioData: unknown, audioMimeType?: string, requestedModel?: string, autoFallback = true) {
-    const apiKey = (process.env.GEMINI_AUDIO_API_KEY || getGeminiApiKey()).trim();
+    const apiKey = getApiKeys('audio')[0] || '';
     if (!apiKey) throw new Error('Audio subtitles require GEMINI_AUDIO_API_KEY or GEMINI_API_KEY. The OpenRouter key handles scene descriptions only.');
     const targetModel = selectAudioModel(process.env.GEMINI_AUDIO_MODEL || requestedModel);
     const ai = new GoogleGenAI({
@@ -850,7 +825,8 @@ type (Spoken words, Music, Sound effect, Ambient sound, Vocal sound or Other), a
         }
       },
       targetModel,
-      autoFallback
+      autoFallback,
+      'audio'
     );
 
     const parsedData = extractJson(response.text || "{}");
@@ -871,7 +847,7 @@ apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) 
   try {
     const { audioData, audioMimeType, fileName } = req.body;
 
-    const apiKey = (process.env.GEMINI_AUDIO_API_KEY || getGeminiApiKey()).trim();
+    const apiKey = getApiKeys('audio')[0] || '';
     if (!apiKey) {
       return res.status(500).json({
         error: "GEMINI_AUDIO_API_KEY or GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
