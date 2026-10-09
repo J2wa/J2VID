@@ -7,8 +7,11 @@ PDF's prohibition on AI-generated descriptions; these outputs should not be repr
 as complying with that prohibition.
 
 Descriptions use natural prose, observable details, precise verbs and chronological
-events. The six questions guide observation without forcing headings, six sentences or
-empty answers. Describe logos generically and reproduce relevant visible text exactly.
+events. Every segment applies S.P.A.C.E.S: Setting (where), Perspective (viewpoint),
+Action (what happens), Change (what develops), Environment (what else happens) and Subject
+(who or what stands out). Generation and revision weave all six into coherent prose,
+without labeled answers, a forced sentence count or empty filler. Unsupported details
+remain uncertain rather than being invented to complete the framework. Describe logos generically and reproduce relevant visible text exactly.
 Never infer unseen movement or transitions from one snapshot. Human review is needed
 for factual accuracy, suitability, scene boundaries, sound relevance and timing.
 
