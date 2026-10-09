@@ -289,6 +289,27 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
 
         {/* Modal Scrollable Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-6 text-xs flex-1">
+          <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4">
+            <label htmlFor="starting-location" className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+              Before you start: where does the video take place?
+            </label>
+            <p id="starting-location-help" className="text-xs text-zinc-400 leading-relaxed">
+              Optional: describe the starting location, background and time of day if known.
+              This guides the descriptions; each segment can have a different setting.
+              Leave it blank when unsure so only visible details are used.
+            </p>
+            <textarea
+              id="starting-location"
+              aria-describedby="starting-location-help"
+              rows={2}
+              value={globalBackground}
+              onChange={(e) => setGlobalBackground(e.target.value)}
+              placeholder="e.g. Outside on a city street in daylight, with shops and passing traffic. Tagalog or English is welcome."
+              className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl p-3 text-zinc-100 text-xs focus:outline-none transition-all"
+            />
+          </div>
+
           {/* Mass Upload Banner Section */}
           <div className="bg-gradient-to-r from-indigo-950/70 via-zinc-900 to-indigo-950/70 border border-indigo-500/30 rounded-2xl p-4 space-y-3 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -345,20 +366,6 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Global Background Setting (Optional) */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 text-emerald-400" /> Global Scene Background & Context (Optional)
-            </label>
-            <input
-              type="text"
-              value={globalBackground}
-              onChange={(e) => setGlobalBackground(e.target.value)}
-              placeholder="e.g. Isang bukas na parke na may sementadong daanan at mga puno"
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl p-3 text-zinc-100 text-xs focus:outline-none transition-all"
-            />
           </div>
 
           {/* Optional MP3 Audio Upload */}
@@ -493,6 +500,20 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
                   )}
                 </div>
 
+                <div className="space-y-1.5">
+                  <label htmlFor={`segment-location-${scene.id}`} className="text-[11px] font-bold text-zinc-200">
+                    This segment's background or location (optional)
+                  </label>
+                  <input
+                    id={`segment-location-${scene.id}`}
+                    type="text"
+                    value={scene.initial_background || ''}
+                    onChange={(e) => handleUpdateScene(scene.id, { initial_background: e.target.value })}
+                    placeholder="Use the starting setting, or describe a new location here."
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl p-3 text-zinc-100 text-xs focus:outline-none transition-all"
+                  />
+                </div>
+
                 {/* Textbox for Action Guidance (Tagalog or English) */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -547,3 +568,4 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
     </div>
   );
 };
+

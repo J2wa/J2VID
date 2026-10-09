@@ -15,6 +15,25 @@ remain uncertain rather than being invented to complete the framework. Describe 
 Never infer unseen movement or transitions from one snapshot. Human review is needed
 for factual accuracy, suitability, scene boundaries, sound relevance and timing.
 
+## Starting context and description style
+
+The first question in snapshot setup asks where the video takes place. The optional
+answer can include the starting background, indoor/outdoor location and supported
+time of day in Tagalog or English. Each segment has an optional location override.
+Both Gemini and OpenRouter receive this context; it is retained with the scene and
+sent again during revision. Visible changes take precedence over inherited context.
+
+Use viewpoint language rather than a camera, drone or operator for filming perspective.
+Include supported framing, angle, movement and focus. Start with the setting, identify
+the subject through useful visible traits, and describe actions and revelations in
+sequence, weaving in secondary surroundings and observed changes. Keep dialogue and
+sound labels in subtitles. Avoid invented identities, relationships, motives or cuts.
+
+The Golden Example calibration adds meaningful segmentation within a scene, distinct
+title-card segments, focus and stance changes, and descriptions that distinguish
+similar viewpoints. Preserve manually supplied segments and timings; splitting advice
+must not fabricate new boundaries from single snapshots.
+
 ## Subtitles
 
 English speech is verbatim. Non-English portions use [Speaking non-English], with

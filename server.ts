@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
-import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES } from './lib/annotation-guidelines.js';
+import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES, formatBackgroundContext } from './lib/annotation-guidelines.js';
 import { getApiKeys, withApiKeyFallback, type KeyPurpose } from './lib/api-keys.js';
 import { selectAudioModel, parseAudioInput, normalizeSubtitles } from './lib/subtitles.js';
 import { accessApp, requireSession } from './lib/access.js';
@@ -314,7 +314,7 @@ Produce strictly structured JSON conforming to the following format:
 
     // Extract snapshot images and build user prompt
     const openRouterImages: Array<{ mimeType: string; base64: string }> = [];
-    let scenesText = "";
+    let scenesText = formatBackgroundContext(initialBackground);
 
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
       scenesText += `Sequence of scenes to analyze:\n`;
@@ -324,9 +324,7 @@ Produce strictly structured JSON conforming to the following format:
         if (sc.raw_description) {
           scenesText += `- User Action Guidance (Tagalog/English): "${sc.raw_description}"\n`;
         }
-        if (sc.initial_background) {
-          scenesText += `- Background Setting Context: "${sc.initial_background}"\n`;
-        }
+        scenesText += formatBackgroundContext(initialBackground, sc.initial_background);
         if (sc.start_time && sc.end_time) {
           scenesText += `- Boundaries: ${sc.start_time} - ${sc.end_time}\n`;
         }
@@ -470,9 +468,7 @@ Produce strictly structured JSON conforming to the following format:
         if (sc.raw_description) {
           sceneHeader += `- User Action Guidance (Tagalog/English): "${sc.raw_description}"\n`;
         }
-        if (sc.initial_background) {
-          sceneHeader += `- Background Setting Context: "${sc.initial_background}"\n`;
-        }
+        sceneHeader += formatBackgroundContext(initialBackground, sc.initial_background);
 
         parts.push({ text: sceneHeader });
 
@@ -636,7 +632,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
   const autoFallback = req.body.autoFallback !== false;
 
   try {
-    const { sceneId, currentDescription, feedback, rawDescription, startImage, snapshotImage } = req.body;
+    const { sceneId, currentDescription, feedback, rawDescription, startImage, snapshotImage, initialBackground, sceneBackground } = req.body;
 
     const geminiKey = getGeminiApiKey();
     const openRouterKey = getOpenRouterApiKey();
@@ -669,6 +665,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
     }
 
     let revisionPrompt = `You are revising Scene #${sceneId}'s factual visual description based on user feedback.\n\n`;
+    revisionPrompt += formatBackgroundContext(initialBackground, sceneBackground);
     revisionPrompt += `CURRENT DESCRIPTION:\n"${currentDescription}"\n\n`;
     if (rawDescription) {
       revisionPrompt += `INITIAL USER GUIDANCE (Tagalog/English):\n"${rawDescription}"\n\n`;

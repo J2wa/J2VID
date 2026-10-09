@@ -239,12 +239,13 @@ export default function App() {
           // Merge images and raw descriptions into scenes if not returned by server
           if (resultData.scenes) {
             resultData.scenes = resultData.scenes.map((sc, idx) => {
-              const matchingInput = scenesInput[idx] || scenesInput.find((i) => i.scene_id === sc.scene_id);
+              const matchingInput = scenesInput.find((i) => i.scene_id === sc.scene_id) || scenesInput[idx];
               return {
                 ...sc,
                 start_image: matchingInput?.start_image || matchingInput?.snapshot_image,
                 snapshot_image: matchingInput?.start_image || matchingInput?.snapshot_image,
-                raw_description: matchingInput?.raw_description
+                raw_description: matchingInput?.raw_description,
+                initial_background: matchingInput?.initial_background?.trim() || bgContext?.trim()
               };
             });
           }
@@ -378,7 +379,8 @@ export default function App() {
           narrative_description: narrative,
           start_image: sc.start_image || sc.snapshot_image,
           snapshot_image: sc.start_image || sc.snapshot_image,
-          raw_description: sc.raw_description
+          raw_description: sc.raw_description,
+          initial_background: sc.initial_background?.trim() || bg?.trim()
         };
       }),
       subtitles: []
@@ -493,7 +495,8 @@ export default function App() {
           feedback,
           rawDescription: targetScene.raw_description,
           startImage: targetScene.start_image,
-          endImage: targetScene.end_image,
+          initialBackground: globalBackground,
+          sceneBackground: targetScene.initial_background,
           model: selectedModel,
           autoFallback
         })
@@ -867,3 +870,4 @@ export default function App() {
     </div>
   );
 }
+
