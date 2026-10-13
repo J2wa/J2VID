@@ -43,7 +43,7 @@ export default function App() {
   const [globalBackground, setGlobalBackground] = useState<string>('');
 
   // Selected AI Model & Quota Fallback
-  const [subtitleProvider, setSubtitleProvider] = useState<SubtitleProvider>('gemini');
+  const [subtitleProvider, setSubtitleProvider] = useState<SubtitleProvider>('deepgram');
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return localStorage.getItem('j2_selected_gemini_model') || DEFAULT_MODEL_ID;
   });

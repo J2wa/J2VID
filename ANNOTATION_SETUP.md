@@ -44,7 +44,7 @@ Meaningful overlaps remain intact. Review and refine generated timing against au
 Choose Gemini or Deepgram in the Subtitle provider selector, either during scene
 setup or in the subtitle panel. The choice is shared and applies to attached audio
 in scene runs as well as standalone subtitle uploads. It is independent of the
-scene/vision model. Existing callers without a provider still use Gemini.
+scene/vision model. Deepgram is selected by default in the app and for API callers\nthat omit a provider. Gemini remains available as an explicit choice.
 
 Gemini uses a generateContent-compatible audio-understanding model and can include
 relevant speech, music and sound cues. Deepgram uses its pre-recorded REST endpoint

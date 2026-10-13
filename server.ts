@@ -768,7 +768,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
   }
 });
 
-export async function transcribeAudio(audioData: unknown, audioMimeType?: string, requestedModel?: string, autoFallback = true, requestedProvider: unknown = 'gemini') {
+export async function transcribeAudio(audioData: unknown, audioMimeType?: string, requestedModel?: string, autoFallback = true, requestedProvider: unknown = 'deepgram') {
     if (requestedProvider === 'deepgram') return transcribeDeepgram(audioData, audioMimeType, autoFallback);
     if (requestedProvider !== undefined && requestedProvider !== 'gemini') {
       throw Object.assign(new Error('Choose Gemini or Deepgram as the subtitle provider.'), { status: 400 });
@@ -850,7 +850,7 @@ type (Spoken words, Music, Sound effect, Ambient sound, Vocal sound or Other), a
 
 // Audio MP3 Subtitle Transcription API Endpoint
 apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
-  const deepgram = req.body.subtitleProvider === 'deepgram';
+  const deepgram = (req.body.subtitleProvider ?? 'deepgram') === 'deepgram';
   let targetModel = deepgram ? process.env.DEEPGRAM_MODEL || 'nova-3' : selectAudioModel(process.env.GEMINI_AUDIO_MODEL || req.body.model);
   const autoFallback = req.body.autoFallback !== false;
 
