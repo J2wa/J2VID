@@ -1,9 +1,12 @@
+import { SubtitleProviderSelector } from './SubtitleProviderSelector';
 import React, { useState } from 'react';
 import { MessageSquare, Play, Edit3, Plus, Trash2, Search, Volume2, Music, Mic, Radio, Bell, Upload, Loader2, CheckCircle2 } from 'lucide-react';
-import { SubtitleAnnotation, SubtitleType } from '../types';
+import { SubtitleAnnotation, SubtitleType, SubtitleProvider } from '../types';
 import { parseTimestampToSeconds } from '../utils/timeUtils';
 
 interface SubtitleListProps {
+  subtitleProvider: SubtitleProvider;
+  onSubtitleProviderChange: (value: SubtitleProvider) => void;
   subtitles: SubtitleAnnotation[];
   currentTime: number;
   onJumpToTime: (seconds: number) => void;
@@ -16,6 +19,8 @@ interface SubtitleListProps {
 }
 
 export const SubtitleList: React.FC<SubtitleListProps> = ({
+  subtitleProvider,
+  onSubtitleProviderChange,
   subtitles,
   currentTime,
   onJumpToTime,
@@ -36,7 +41,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   const handleMp3FileUpload = async (file: File) => {
     try {
       setIsTranscribing(true);
-      setTranscribeNotice(`Uploading ${file.name} and generating timed subtitles with Gemini AI...`);
+      setTranscribeNotice(`Uploading ${file.name} and generating timed subtitles with ${subtitleProvider === 'deepgram' ? 'Deepgram' : 'Gemini'}...`);
 
       const audioObjectUrl = URL.createObjectURL(file);
       setUploadedAudioUrl(audioObjectUrl);
@@ -53,7 +58,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
         body: JSON.stringify({ audioData: dataUrl, audioMimeType: file.type || 'audio/mpeg',
-          fileName: file.name, autoFallback })
+          fileName: file.name, autoFallback, subtitleProvider })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -66,7 +71,8 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
       onSubtitlesGenerated?.(data.subtitles);
       setTranscribeNotice(data.subtitles.length
         ? `Generated ${data.subtitles.length} subtitles from ${file.name}. Review the wording and timing against the audio.`
-        : 'No relevant speech or sound cues detected. Review the audio to confirm.');
+        : 'No speech entries detected. Review the audio to confirm.');
+      if (data._warnings?.length) setTranscribeNotice('Review: ' + data._warnings.join(' '));
     } catch (err: any) {
       console.error('Error reading MP3 file:', err);
       setIsTranscribing(false);
@@ -159,6 +165,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             <span>Upload MP3</span>
             <input
               type="file"
+              disabled={isTranscribing}
               accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/*"
               className="hidden"
               onChange={(e) => {
@@ -176,6 +183,10 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             Add Subtitle
           </button>
         </div>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
+        <SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange} disabled={isTranscribing} />
       </div>
 
       {/* Transcription Notice / Loading Banner */}

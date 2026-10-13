@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { transcribeDeepgram } from './lib/deepgram.js';
 import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES, formatBackgroundContext } from './lib/annotation-guidelines.js';
 import { getApiKeys, withApiKeyFallback, type KeyPurpose } from './lib/api-keys.js';
 import { selectAudioModel, parseAudioInput, normalizeSubtitles } from './lib/subtitles.js';
@@ -230,6 +231,7 @@ apiRouter.get(["/health", "/api/health"], (req, res) => {
     hasGeminiKey: !!geminiKey,
     hasOpenRouterKey: !!openRouterKey,
     hasAudioKey: getApiKeys('audio').length > 0,
+    hasDeepgramKey: getApiKeys('deepgram').length > 0,
     keyConfigured: !!(geminiKey || openRouterKey),
     availableGeminiModels: VALID_GEMINI_MODELS,
     availableOpenRouterModels: VALID_OPENROUTER_MODELS,
@@ -283,7 +285,7 @@ apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
 
     // Keep audio processing independent of the selected scene provider.
     const audioResult = req.body.audioData
-      ? await transcribeAudio(req.body.audioData, req.body.audioMimeType, undefined, autoFallback)
+      ? await transcribeAudio(req.body.audioData, req.body.audioMimeType, undefined, autoFallback, req.body.subtitleProvider)
       : null;
     const durationFormatted = formatSecondsToTimestamp(durationSeconds || 30);
 
@@ -407,6 +409,8 @@ Produce strictly structured JSON conforming to the following format:
           if (req.body.audioData) {
             parsedData.subtitles = audioResult.subtitles;
             parsedData._audioModelUsed = audioResult._modelUsed;
+            parsedData._audioProvider = audioResult._provider;
+            parsedData._audioWarnings = audioResult._warnings || [];
           } else {
             parsedData.subtitles = normalizeSubtitles(parsedData.subtitles || []);
           }
@@ -435,6 +439,8 @@ Produce strictly structured JSON conforming to the following format:
             if (req.body.audioData) {
             parsedData.subtitles = audioResult.subtitles;
             parsedData._audioModelUsed = audioResult._modelUsed;
+            parsedData._audioProvider = audioResult._provider;
+            parsedData._audioWarnings = audioResult._warnings || [];
           } else {
             parsedData.subtitles = normalizeSubtitles(parsedData.subtitles || []);
           }
@@ -610,6 +616,8 @@ Video Metadata:
     if (req.body.audioData) {
             parsedData.subtitles = audioResult.subtitles;
             parsedData._audioModelUsed = audioResult._modelUsed;
+            parsedData._audioProvider = audioResult._provider;
+            parsedData._audioWarnings = audioResult._warnings || [];
           } else {
             parsedData.subtitles = normalizeSubtitles(parsedData.subtitles || []);
           }
@@ -760,7 +768,11 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
   }
 });
 
-export async function transcribeAudio(audioData: unknown, audioMimeType?: string, requestedModel?: string, autoFallback = true) {
+export async function transcribeAudio(audioData: unknown, audioMimeType?: string, requestedModel?: string, autoFallback = true, requestedProvider: unknown = 'gemini') {
+    if (requestedProvider === 'deepgram') return transcribeDeepgram(audioData, audioMimeType, autoFallback);
+    if (requestedProvider !== undefined && requestedProvider !== 'gemini') {
+      throw Object.assign(new Error('Choose Gemini or Deepgram as the subtitle provider.'), { status: 400 });
+    }
     const apiKey = getApiKeys('audio')[0] || '';
     if (!apiKey) throw new Error('Audio subtitles require GEMINI_AUDIO_API_KEY or GEMINI_API_KEY. The OpenRouter key handles scene descriptions only.');
     const targetModel = selectAudioModel(process.env.GEMINI_AUDIO_MODEL || requestedModel);
@@ -838,33 +850,27 @@ type (Spoken words, Music, Sound effect, Ambient sound, Vocal sound or Other), a
 
 // Audio MP3 Subtitle Transcription API Endpoint
 apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) => {
-  let targetModel = selectAudioModel(process.env.GEMINI_AUDIO_MODEL || req.body.model);
+  const deepgram = req.body.subtitleProvider === 'deepgram';
+  let targetModel = deepgram ? process.env.DEEPGRAM_MODEL || 'nova-3' : selectAudioModel(process.env.GEMINI_AUDIO_MODEL || req.body.model);
   const autoFallback = req.body.autoFallback !== false;
 
   try {
     const { audioData, audioMimeType, fileName } = req.body;
 
-    const apiKey = getApiKeys('audio')[0] || '';
-    if (!apiKey) {
-      return res.status(500).json({
-        error: "GEMINI_AUDIO_API_KEY or GEMINI_API_KEY environment variable is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings > Environment Variables, or in your local .env file."
-      });
-    }
-
     if (!audioData) {
       return res.status(400).json({ error: "Missing audioData in request body." });
     }
 
-    const parsedData = await transcribeAudio(audioData, audioMimeType, targetModel, autoFallback);
+    const parsedData = await transcribeAudio(audioData, audioMimeType, targetModel, autoFallback, req.body.subtitleProvider);
     return res.json(parsedData);
   } catch (err: any) {
     console.error("Error in /api/transcribe-audio:", err);
     const quotaExhausted = isQuotaError(err);
-    return res.status(quotaExhausted ? 429 : 500).json({
+    return res.status(err.status === 400 ? 400 : err.status === 503 ? 503 : quotaExhausted ? 429 : 500).json({
       error: err.message || "Failed to transcribe audio file.",
       isQuotaExhausted: quotaExhausted,
       modelUsed: targetModel,
-      suggestedFallback: targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
+      suggestedFallback: deepgram ? undefined : targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
     });
   }
 });

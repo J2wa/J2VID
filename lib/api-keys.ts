@@ -1,4 +1,4 @@
-export type KeyPurpose = 'gemini' | 'openrouter' | 'audio';
+export type KeyPurpose = 'gemini' | 'openrouter' | 'audio' | 'deepgram';
 
 function pool(env: NodeJS.ProcessEnv, prefix: string): string[] {
   const values = [env[prefix]?.trim() || env[prefix + '_1'], env[prefix + '_2'], env[prefix + '_3']];
@@ -6,6 +6,7 @@ function pool(env: NodeJS.ProcessEnv, prefix: string): string[] {
 }
 
 export function getApiKeys(purpose: KeyPurpose, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (purpose === 'deepgram') return pool(env, 'DEEPGRAM_API_KEY');
   if (purpose === 'openrouter') return pool(env, 'OPENROUTER_API_KEY');
   if (purpose === 'audio') {
     const dedicated = pool(env, 'GEMINI_AUDIO_API_KEY');
