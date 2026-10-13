@@ -16,6 +16,11 @@ test('starting and segment backgrounds reach Gemini and OpenRouter generation an
   const providerRequests: Array<{ url: string; body: any }> = [];
   globalThis.fetch = async (input, init) => {
     const url = String(input);
+    if (url.includes('api.deepgram.com')) {
+      providerRequests.push({ url, body: 'binary' });
+      return Response.json({ results: { channels: [{ alternatives: [{ transcript: 'Hello.', words: [
+        { word: 'Hello.', start: 0.1, end: 0.6, language: 'en' }] }] }] } });
+    }
     if (url.includes('generativelanguage.googleapis.com') || url.includes('openrouter.ai')) {
       providerRequests.push({ url, body: JSON.parse(String(init?.body)) });
       const result = { video_duration: '00:00:05.000', suitability: { status: 'suitable', category: 'Documentary', confidence: 0.9, reason: 'Movement' },
@@ -62,7 +67,22 @@ test('starting and segment backgrounds reach Gemini and OpenRouter generation an
     const login = await post('/api/access', { action: 'login', username: 'Reviewer', password: userPassword });
     assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie')!.split(';')[0];
-    for (const model of ['gemini-flash-latest', 'openai/gpt-4o-mini']) {
+    process.env.DEEPGRAM_API_KEY = 'synthetic-deepgram';
+    const savedGemini = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    const audioResponse = await post('/api/transcribe-audio', { subtitleProvider: 'deepgram', audioData: 'YQ==', audioMimeType: 'audio/mpeg' }, cookie);
+    assert.equal(audioResponse.status, 200);
+    assert.equal((await audioResponse.json())._provider, 'deepgram');
+    const sceneWithAudio = await post('/api/annotate-video', { model: 'openai/gpt-4o-mini', subtitleProvider: 'deepgram',
+      audioData: 'YQ==', durationSeconds: 5, scenesInput: [{ scene_id: 1, raw_description: 'A person walks.' }] }, cookie);
+    assert.equal(sceneWithAudio.status, 200);
+    const sceneResult = await sceneWithAudio.json();
+    assert.equal(sceneResult._audioProvider, 'deepgram');
+    assert.equal(sceneResult.subtitles[0].text, 'Hello.');
+    const invalid = await post('/api/transcribe-audio', { subtitleProvider: 'unknown', audioData: 'YQ==' }, cookie);
+    assert.equal(invalid.status, 400);
+    process.env.GEMINI_API_KEY = savedGemini;
+    for (const model of ['gemini-flash-latest' , 'openai/gpt-4o-mini']) {
       const generated = await post('/api/annotate-video', { model, autoFallback: false, durationSeconds: 5,
         initialBackground: 'A city street in daylight', scenesInput: [
           { scene_id: 1, raw_description: 'A person walks.', initial_background: 'An office interior' },

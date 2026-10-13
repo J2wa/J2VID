@@ -1,4 +1,5 @@
 export type SuitabilityStatus = 'suitable' | 'discarded';
+export type SubtitleProvider = 'gemini' | 'deepgram';
 
 export type VideoCategory =
   | 'Live Performance'
@@ -87,3 +88,4 @@ export interface ValidationError {
   field: string;
   message: string;
 }
+

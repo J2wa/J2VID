@@ -1,3 +1,4 @@
+import { SubtitleProvider } from './types';
 import React, { useState, useEffect } from 'react';
 import { SAMPLE_VIDEOS } from './data/sampleVideos';
 import { SubtitleList } from './components/SubtitleList';
@@ -42,6 +43,7 @@ export default function App() {
   const [globalBackground, setGlobalBackground] = useState<string>('');
 
   // Selected AI Model & Quota Fallback
+  const [subtitleProvider, setSubtitleProvider] = useState<SubtitleProvider>('gemini');
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return localStorage.getItem('j2_selected_gemini_model') || DEFAULT_MODEL_ID;
   });
@@ -218,6 +220,7 @@ export default function App() {
             initialBackground: bgContext || undefined,
             durationSeconds: totalSec,
             audioData,
+            subtitleProvider,
             model: selectedModel,
             autoFallback
           })
@@ -783,6 +786,8 @@ export default function App() {
                   />
 
                   <SubtitleList
+                    subtitleProvider={subtitleProvider}
+                    onSubtitleProviderChange={setSubtitleProvider}
                     subtitles={annotationResult?.subtitles || []}
                     currentTime={currentTime}
                     onJumpToTime={handleJumpToTime}
@@ -839,6 +844,8 @@ export default function App() {
 
       {/* Pop-up Event & Scene Configurator Modal */}
       <EventSetupModal
+        subtitleProvider={subtitleProvider}
+        onSubtitleProviderChange={setSubtitleProvider}
         isOpen={isSetupModalOpen}
         onClose={() => setIsSetupModalOpen(false)}
         initialScenes={configuredScenes}

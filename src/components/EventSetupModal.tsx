@@ -1,8 +1,11 @@
+import { SubtitleProviderSelector } from './SubtitleProviderSelector';
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Sparkles, Plus, Trash2, Upload, Image as ImageIcon, Globe, Play, ArrowUpDown, Layers, CheckCircle2, Music } from 'lucide-react';
-import { SceneInput } from '../types';
+import { SceneInput, SubtitleProvider } from '../types';
 
 interface EventSetupModalProps {
+  subtitleProvider: SubtitleProvider;
+  onSubtitleProviderChange: (value: SubtitleProvider) => void;
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: {
@@ -100,6 +103,8 @@ const SAMPLE_PRESETS: { label: string; description: string; scenes: SceneInput[]
 ];
 
 export const EventSetupModal: React.FC<EventSetupModalProps> = ({
+  subtitleProvider,
+  onSubtitleProviderChange,
   isOpen,
   onClose,
   onSubmit,
@@ -368,6 +373,8 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
             </div>
           </div>
 
+          <SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange} />
+
           {/* Optional MP3 Audio Upload */}
           <div className="bg-zinc-950/80 border border-amber-500/30 rounded-2xl p-4 space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -377,7 +384,7 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
                   Upload MP3 Audio for Automatic Subtitles (Optional)
                 </span>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Upload an MP3/audio track. Gemini will automatically transcribe spoken dialogue, vocals, and sound cues into timecoded subtitles.
+                  Upload an audio track to generate timed subtitles with your selected provider.
                 </p>
               </div>
 

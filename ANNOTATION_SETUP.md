@@ -41,10 +41,32 @@ English portions kept separate. Silence stays empty. Significant sounds use brac
 labels; profanity is censored and focused English singing includes lyrics.
 Meaningful overlaps remain intact. Review and refine generated timing against audio.
 
-The audio endpoint uses Gemini generateContent with a compatible audio-understanding
-model. It does not send an OpenRouter vision ID or the Interactions-only
-gemini-3.5-transcribe model to that API. Scene runs with attached audio use the same
-audio service regardless of their scene provider.
+Choose Gemini or Deepgram in the Subtitle provider selector, either during scene
+setup or in the subtitle panel. The choice is shared and applies to attached audio
+in scene runs as well as standalone subtitle uploads. It is independent of the
+scene/vision model. Existing callers without a provider still use Gemini.
+
+Gemini uses a generateContent-compatible audio-understanding model and can include
+relevant speech, music and sound cues. Deepgram uses its pre-recorded REST endpoint
+with Nova-3 multilingual speech recognition by default. It receives binary audio
+and returns word timestamps; the adapter splits English speech into readable timed
+ranges, labels non-English runs [Speaking non-English], preserves speaker overlaps
+and leaves silence empty. Profanity filtering and filler-word recognition are enabled.
+
+Deepgram handles speech, not the project's music/sound-effect descriptions. Add those
+manually or select Gemini. Multilingual recognition supports a limited language set:
+review labels carefully, particularly for unsupported languages. Words without reliable
+language metadata become [indistinct chatter] with a review warning instead of being
+assumed English. No transcript is exposed for non-English runs. Live recognition still
+needs verification with the project's actual audio.
+
+The app never silently switches providers. Deepgram key retries follow Auto Fallback,
+while a failed Deepgram request returns a clear error. Gemini remains available to select.
+
+Official references:
+- https://developers.deepgram.com/docs/pre-recorded-audio
+- https://developers.deepgram.com/docs/multilingual-code-switching
+- https://developers.deepgram.com/docs/profanity-filter
 
 ## Vercel keys
 
@@ -56,6 +78,8 @@ save the keys privately. Redeploy for changes to take effect.
 | GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3 | Direct Gemini scene generation/revision: primary and two backups |
 | OPENROUTER_API_KEY, OPENROUTER_API_KEY_2, OPENROUTER_API_KEY_3 | OpenRouter scene generation/revision: primary and two backups |
 | GEMINI_AUDIO_API_KEY, GEMINI_AUDIO_API_KEY_2, GEMINI_AUDIO_API_KEY_3 | Dedicated Gemini subtitle pool: primary and two backups |
+| DEEPGRAM_API_KEY, DEEPGRAM_API_KEY_2, DEEPGRAM_API_KEY_3 | Deepgram speech subtitles: primary and two optional backups |
+| DEEPGRAM_MODEL | Optional pre-recorded multilingual model; default nova-3 |
 | GEMINI_AUDIO_MODEL | Optional compatible audio model; default gemini-flash-latest |
 
 Each pool accepts up to three ordered keys. The unsuffixed name is key 1; an _1
@@ -72,13 +96,16 @@ No key values are exposed in the browser or health response.
 Gemini rate limits apply per project, not per key: three keys from one project
 share its quota. See https://ai.google.dev/gemini-api/docs/rate-limits.
 
+To use Deepgram on Vercel, add DEEPGRAM_API_KEY as a private Secret environment
+variable in Project Settings → Environment Variables for the intended deployment
+environments. Redeploy after adding it, then select Deepgram in the app. The two
+backup keys and DEEPGRAM_MODEL are optional. No key needs to be pasted into the UI.
+
 Do not prefix secrets with VITE_ or commit them to GitHub. The audio key is optional
-when GEMINI_API_KEY is already present. OpenRouter alone does not provide subtitles
-through the current audio service.
+when GEMINI_API_KEY is already present. OpenRouter alone does not provide audio subtitles; add a Gemini or Deepgram key.
 
 Possible future extensions, pending owner confirmation:
 
-- A dedicated speech-to-text provider with a separate key and measured timestamp accuracy.
 - Six observation textboxes per segment with preservation of manually entered answers.
 - Up to four subtitle lanes, time-range editing and loop playback for overlapping speakers.
 - Multiple frames per scene to support observable change and reduce still-image inference.
@@ -87,5 +114,8 @@ Possible future extensions, pending owner confirmation:
 
 Run npm run lint, npm run build, and node --import tsx --test tests/*.test.ts.
 Tests include a mocked Gemini SDK HTTP response, wrong-model routing, malformed results,
-silence, overlapping ranges and review warnings. Live provider transcription and Vercel
+silence, overlapping ranges and review warnings. Deepgram tests cover binary upload,
+backup keys, mixed-language word labels, millisecond rounding and malformed responses.
+Authenticated route tests exercise Deepgram uploads and OpenRouter scene runs with
+Deepgram audio even when no Gemini key is configured. Live provider transcription and Vercel
 deployment still require the configured keys and a representative audio file.
