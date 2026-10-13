@@ -70,10 +70,10 @@ test('starting and segment backgrounds reach Gemini and OpenRouter generation an
     process.env.DEEPGRAM_API_KEY = 'synthetic-deepgram';
     const savedGemini = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
-    const audioResponse = await post('/api/transcribe-audio', { subtitleProvider: 'deepgram', audioData: 'YQ==', audioMimeType: 'audio/mpeg' }, cookie);
+    const audioResponse = await post('/api/transcribe-audio', { audioData: 'YQ==', audioMimeType: 'audio/mpeg' }, cookie);
     assert.equal(audioResponse.status, 200);
     assert.equal((await audioResponse.json())._provider, 'deepgram');
-    const sceneWithAudio = await post('/api/annotate-video', { model: 'openai/gpt-4o-mini', subtitleProvider: 'deepgram',
+    const sceneWithAudio = await post('/api/annotate-video', { model: 'openai/gpt-4o-mini',
       audioData: 'YQ==', durationSeconds: 5, scenesInput: [{ scene_id: 1, raw_description: 'A person walks.' }] }, cookie);
     assert.equal(sceneWithAudio.status, 200);
     const sceneResult = await sceneWithAudio.json();

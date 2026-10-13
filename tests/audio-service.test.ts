@@ -26,7 +26,7 @@ test('audio service sends audio to a compatible Gemini model and validates the S
   };
   try {
     const { transcribeAudio } = await import('../server.js');
-    const result = await transcribeAudio('data:audio/mp3;base64,YQ==', undefined, 'openai/gpt-4o-mini', false);
+    const result = await transcribeAudio('data:audio/mp3;base64,YQ==', undefined, 'openai/gpt-4o-mini', false, 'gemini');
     assert.match(requests[0].url, /gemini-flash-latest:generateContent/);
     assert.equal(requests[0].body.contents[0].parts[0].inlineData.mimeType, 'audio/mpeg');
     assert.match(JSON.stringify(requests[0].body), /Speaking non-English/);
@@ -36,13 +36,13 @@ test('audio service sends audio to a compatible Gemini model and validates the S
     process.env.GEMINI_AUDIO_API_KEY_2 = 'synthetic-audio-2';
     process.env.GEMINI_AUDIO_API_KEY_3 = 'synthetic-audio-3';
     useBackups = true;
-    const backupResult = await transcribeAudio('YQ==', 'audio/mpeg', undefined, true);
+    const backupResult = await transcribeAudio('YQ==', 'audio/mpeg', undefined, true, 'gemini');
     assert.equal(backupResult.subtitles.length, 1);
     assert.deepEqual(requests.slice(-3).map(request => request.key),
       ['synthetic-audio-1', 'synthetic-audio-2', 'synthetic-audio-3']);
     useBackups = false;
     malformed = true;
-    await assert.rejects(transcribeAudio('YQ==', 'audio/mpeg', undefined, false), /no subtitle array/);
+    await assert.rejects(transcribeAudio('YQ==', 'audio/mpeg', undefined, false, 'gemini'), /no subtitle array/);
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
