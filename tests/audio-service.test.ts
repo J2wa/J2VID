@@ -27,9 +27,11 @@ test('audio service sends audio to a compatible Gemini model and validates the S
   try {
     const { transcribeAudio } = await import('../server.js');
     const result = await transcribeAudio('data:audio/mp3;base64,YQ==', undefined, 'openai/gpt-4o-mini', false, 'gemini');
-    assert.match(requests[0].url, /gemini-flash-latest:generateContent/);
+    assert.match(requests[0].url, /gemini-3.8-flash:generateContent/);
     assert.equal(requests[0].body.contents[0].parts[0].inlineData.mimeType, 'audio/mpeg');
     assert.match(JSON.stringify(requests[0].body), /Speaking non-English/);
+    assert.equal(requests[0].body.generationConfig.temperature, undefined);
+    assert.equal(requests[0].body.generationConfig.responseMimeType, 'application/json');
     assert.equal(result.subtitles[0].text, '[Speaking non-English]');
     assert.equal(result.subtitles[0].subtitle_id, 1);
     process.env.GEMINI_AUDIO_API_KEY = 'synthetic-audio-1';

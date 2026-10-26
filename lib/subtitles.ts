@@ -1,10 +1,9 @@
-export const AUDIO_MODEL = 'gemini-flash-latest';
+import { DEFAULT_MODEL_ID, GEMINI_MODEL_IDS, resolveModelSelection } from '../src/data/models.js';
+export const AUDIO_MODEL = DEFAULT_MODEL_ID;
 
-// Vision model selection must not route an OpenRouter ID or Interactions-only model
-// through Gemini generateContent.
 export function selectAudioModel(requested?: string): string {
-  return ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest',
-    'gemini-3.1-pro-preview'].includes(requested || '') ? requested! : AUDIO_MODEL;
+  const model = resolveModelSelection(requested);
+  return GEMINI_MODEL_IDS.includes(model) ? model : AUDIO_MODEL;
 }
 
 export function parseAudioInput(audioData: unknown, mime = 'audio/mpeg') {

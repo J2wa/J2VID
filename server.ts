@@ -1,3 +1,5 @@
+import { DEFAULT_MODEL_ID, GEMINI_FALLBACK_MODEL_ID, DEFAULT_OPENROUTER_MODEL_ID, OPENROUTER_FALLBACK_MODEL_ID, GEMINI_MODEL_IDS, OPENROUTER_MODEL_IDS, resolveModelSelection } from './src/data/models.js';
+import { apiHealth } from './lib/api-health.js';
 import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -26,36 +28,13 @@ function getOpenRouterApiKey(): string {
   return getApiKeys('openrouter')[0] || '';
 }
 
-// Allowed Direct Gemini Models per SDK specifications
-const VALID_GEMINI_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.1-flash-lite",
-  "gemini-flash-latest",
-  "gemini-3.1-pro-preview",
-  "gemini-3.5-transcribe"
-];
-
-// OpenRouter Multimodal / Vision Models
-const VALID_OPENROUTER_MODELS = [
-  "google/gemini-2.5-flash:free",
-  "meta-llama/llama-3.2-11b-vision-instruct:free",
-  "qwen/qwen-2.5-vl-72b-instruct:free",
-  "google/gemini-2.5-flash",
-  "openai/gpt-4o-mini"
-];
-
-function isOpenRouterModel(modelInput?: string): boolean {
-  if (!modelInput) return false;
-  return modelInput.includes("/") || VALID_OPENROUTER_MODELS.includes(modelInput);
+const VALID_GEMINI_MODELS = GEMINI_MODEL_IDS;
+const VALID_OPENROUTER_MODELS = OPENROUTER_MODEL_IDS;
+function isOpenRouterModel(input?: string): boolean {
+  return Boolean(input?.includes('/'));
 }
-
-function sanitizeModel(modelInput?: string, defaultModel = "gemini-3.8-flash"): string {
-  if (modelInput) {
-    if (VALID_GEMINI_MODELS.includes(modelInput) || isOpenRouterModel(modelInput)) {
-      return modelInput;
-    }
-  }
-  return defaultModel;
+function sanitizeModel(input?: string, defaultModel = DEFAULT_MODEL_ID): string {
+  return resolveModelSelection(input || defaultModel);
 }
 
 function isQuotaError(err: any): boolean {
@@ -141,6 +120,7 @@ async function callOpenRouterOnce({
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(120000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": process.env.APP_URL || "https://ai.studio",
@@ -151,7 +131,7 @@ async function callOpenRouterOnce({
       model,
       messages,
       response_format: { type: "json_object" },
-      temperature: 0.1
+      ...(model.startsWith('google/gemini-') ? {} : { temperature: 0.1 })
     })
   });
 
@@ -192,16 +172,17 @@ async function runGeminiWithFallback(
   const keys = getApiKeys(purpose);
   const execute = (model: string) => withApiKeyFallback(keys, apiKey => {
     const client = apiKey === keys[0] ? ai : new GoogleGenAI({ apiKey,
-      httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
+      httpOptions: { timeout: 120000 } });
     return client.models.generateContent({ ...params, model });
   }, autoFallback);
   try {
     const response = await execute(requestedModel);
     return { response, modelUsed: requestedModel, fellBack: false, originalModel: requestedModel };
   } catch (err: any) {
-    if (!autoFallback || !isQuotaError(err)) throw err;
-    const fallbackModel = requestedModel === 'gemini-3.1-flash-lite'
-      ? 'gemini-3.8-flash' : 'gemini-3.1-flash-lite';
+    const status = Number(err?.status || err?.statusCode || err?.code);
+    if (!autoFallback || !(isQuotaError(err) || [404, 502, 503, 504].includes(status))) throw err;
+    const fallbackModel = requestedModel === GEMINI_FALLBACK_MODEL_ID
+      ? DEFAULT_MODEL_ID : GEMINI_FALLBACK_MODEL_ID;
     const response = await execute(fallbackModel);
     return { response, modelUsed: fallbackModel, fellBack: true, originalModel: requestedModel };
   }
@@ -223,25 +204,13 @@ const apiRouter = express.Router();
 
 // Health Check
 apiRouter.get(["/health", "/api/health"], (req, res) => {
-  const geminiKey = getGeminiApiKey();
-  const openRouterKey = getOpenRouterApiKey();
-  res.json({
-    status: "ok",
-    hasApiKey: !!(geminiKey || openRouterKey),
-    hasGeminiKey: !!geminiKey,
-    hasOpenRouterKey: !!openRouterKey,
-    hasAudioKey: getApiKeys('audio').length > 0,
-    hasDeepgramKey: getApiKeys('deepgram').length > 0,
-    keyConfigured: !!(geminiKey || openRouterKey),
-    availableGeminiModels: VALID_GEMINI_MODELS,
-    availableOpenRouterModels: VALID_OPENROUTER_MODELS,
-    timestamp: new Date().toISOString()
-  });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(apiHealth());
 });
 
 // Video / Scene Snapshot Annotation API
 apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
-  let targetModel = sanitizeModel(req.body.model, "gemini-3.8-flash");
+  let targetModel = sanitizeModel(req.body.model, DEFAULT_MODEL_ID);
   const autoFallback = req.body.autoFallback !== false;
 
   try {
@@ -363,7 +332,7 @@ Produce strictly structured JSON conforming to the following format:
     if (useOpenRouter) {
       if (!openRouterKey) {
         if (geminiKey) {
-          targetModel = "gemini-3.8-flash";
+          targetModel = DEFAULT_MODEL_ID;
         } else {
           return res.status(500).json({
             error: `OPENROUTER_API_KEY is required to use model '${targetModel}'. Please configure OPENROUTER_API_KEY in your environment variables.`,
@@ -374,7 +343,7 @@ Produce strictly structured JSON conforming to the following format:
         // Effective model on OpenRouter
         let effectiveOpenRouterModel = isOpenRouterModel(targetModel)
           ? targetModel
-          : "google/gemini-2.5-flash:free";
+          : DEFAULT_OPENROUTER_MODEL_ID;
 
         try {
           const rawText = await callOpenRouter({
@@ -419,11 +388,11 @@ Produce strictly structured JSON conforming to the following format:
           console.warn("[OpenRouter Error]", orErr.message);
           if (autoFallback && geminiKey) {
             console.log("Failing over from OpenRouter to Google Gemini...");
-            targetModel = "gemini-3.8-flash";
+            targetModel = DEFAULT_MODEL_ID;
             // Fall through to Gemini execution below
-          } else if (autoFallback && isQuotaError(orErr) && effectiveOpenRouterModel !== "meta-llama/llama-3.2-11b-vision-instruct:free") {
-            // Fallback to secondary free OpenRouter model
-            const fallbackOrModel = "meta-llama/llama-3.2-11b-vision-instruct:free";
+          } else if (autoFallback && isQuotaError(orErr) && effectiveOpenRouterModel !== OPENROUTER_FALLBACK_MODEL_ID) {
+            // Retry with the current free router instead of a stale community model.
+            const fallbackOrModel = OPENROUTER_FALLBACK_MODEL_ID;
             const rawText = await callOpenRouter({
               model: fallbackOrModel,
               systemPrompt: systemInstruction,
@@ -455,11 +424,7 @@ Produce strictly structured JSON conforming to the following format:
     // Direct Google Gemini Execution
     const ai = new GoogleGenAI({
       apiKey: geminiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build"
-        }
-      }
+      httpOptions: { timeout: 120000 }
     });
 
     const parts: any[] = [];
@@ -540,7 +505,6 @@ Video Metadata:
         contents: { parts },
         config: {
           systemInstruction,
-          temperature: 0.1,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -629,14 +593,14 @@ Video Metadata:
       error: error.message || "Failed to process video annotation.",
       isQuotaExhausted: quotaExhausted,
       modelUsed: targetModel,
-      suggestedFallback: targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
+      suggestedFallback: targetModel === GEMINI_FALLBACK_MODEL_ID ? DEFAULT_MODEL_ID : GEMINI_FALLBACK_MODEL_ID
     });
   }
 });
 
 // Stage 3 Scene Description Revision API Endpoint
 apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
-  let targetModel = sanitizeModel(req.body.model, "gemini-3.8-flash");
+  let targetModel = sanitizeModel(req.body.model, DEFAULT_MODEL_ID);
   const autoFallback = req.body.autoFallback !== false;
 
   try {
@@ -692,7 +656,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
     if (useOpenRouter && openRouterKey) {
       const effectiveOrModel = isOpenRouterModel(targetModel)
         ? targetModel
-        : "google/gemini-2.5-flash:free";
+        : DEFAULT_OPENROUTER_MODEL_ID;
 
       const raw = await callOpenRouter({
         model: effectiveOrModel,
@@ -713,11 +677,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
     // Otherwise use Google Gemini
     const ai = new GoogleGenAI({
       apiKey: geminiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build"
-        }
-      }
+      httpOptions: { timeout: 120000 }
     });
 
     const parts: any[] = [];
@@ -734,7 +694,6 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
       {
         contents: { parts },
         config: {
-          temperature: 0.2,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -763,7 +722,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
       error: err.message || "Failed to revise scene description.",
       isQuotaExhausted: quotaExhausted,
       modelUsed: targetModel,
-      suggestedFallback: targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
+      suggestedFallback: targetModel === GEMINI_FALLBACK_MODEL_ID ? DEFAULT_MODEL_ID : GEMINI_FALLBACK_MODEL_ID
     });
   }
 });
@@ -778,11 +737,7 @@ export async function transcribeAudio(audioData: unknown, audioMimeType?: string
     const targetModel = selectAudioModel(process.env.GEMINI_AUDIO_MODEL || requestedModel);
     const ai = new GoogleGenAI({
       apiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build"
-        }
-      }
+      httpOptions: { timeout: 120000 }
     });
 
     const { data: base64Audio, mimeType } = parseAudioInput(audioData, audioMimeType);
@@ -809,7 +764,6 @@ type (Spoken words, Music, Sound effect, Ambient sound, Vocal sound or Other), a
         contents: { parts },
         config: {
           systemInstruction: SUBTITLE_GUIDELINES,
-          temperature: 0.1,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -870,7 +824,7 @@ apiRouter.post(["/transcribe-audio", "/api/transcribe-audio"], async (req, res) 
       error: err.message || "Failed to transcribe audio file.",
       isQuotaExhausted: quotaExhausted,
       modelUsed: targetModel,
-      suggestedFallback: deepgram ? undefined : targetModel === "gemini-3.1-flash-lite" ? "gemini-3.8-flash" : "gemini-3.1-flash-lite"
+      suggestedFallback: deepgram ? undefined : targetModel === GEMINI_FALLBACK_MODEL_ID ? DEFAULT_MODEL_ID : GEMINI_FALLBACK_MODEL_ID
     });
   }
 });
@@ -921,4 +875,3 @@ if (!process.env.VERCEL) {
 
 export default app;
 export { app };
-

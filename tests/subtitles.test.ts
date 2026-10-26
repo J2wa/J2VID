@@ -7,9 +7,9 @@ const subtitle = { subtitle_id: 4, start_time: '00:00:01.000', end_time: '00:00:
   type: 'Spoken words', text: '[non-English speech]' };
 
 test('vision and Interactions-only selections cannot enter the Gemini audio path', () => {
-  assert.equal(selectAudioModel('openai/gpt-4o-mini'), 'gemini-flash-latest');
-  assert.equal(selectAudioModel('gemini-3.5-transcribe'), 'gemini-flash-latest');
-  assert.equal(selectAudioModel('gemini-3.1-flash-lite'), 'gemini-3.1-flash-lite');
+  assert.equal(selectAudioModel('openai/gpt-4o-mini'), 'gemini-3.8-flash');
+  assert.equal(selectAudioModel('gemini-3.5-transcribe'), 'gemini-3.8-flash');
+  assert.equal(selectAudioModel('gemini-3.1-flash-lite'), 'gemini-3.5-flash-lite');
 });
 test('audio data URL is validated and MP3 MIME normalized', () => {
   assert.deepEqual(parseAudioInput('data:audio/mp3;base64,YQ=='), { mimeType: 'audio/mpeg', data: 'YQ==' });
