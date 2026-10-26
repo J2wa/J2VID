@@ -15,7 +15,7 @@ import { ManualAnnotationEditor } from './components/ManualAnnotationEditor';
 import { EventSetupModal } from './components/EventSetupModal';
 import { UploadBentoPortal } from './components/UploadBentoPortal';
 import { ModelSelectorModal } from './components/ModelSelectorModal';
-import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from './data/models';
+import { DEFAULT_MODEL_ID, AVAILABLE_MODELS, resolveModelSelection, GEMINI_FALLBACK_MODEL_ID } from './data/models';
 import { formatSecondsToTimestamp, parseTimestampToSeconds } from './utils/timeUtils';
 import { MapPin, Clock, Sparkles, Edit3, Globe, Layers, AlertTriangle, Zap, ArrowRightLeft, ShieldCheck } from 'lucide-react';
 
@@ -45,7 +45,7 @@ export default function App() {
   // Selected AI Model & Quota Fallback
   const [subtitleProvider, setSubtitleProvider] = useState<SubtitleProvider>('deepgram');
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem('j2_selected_gemini_model') || DEFAULT_MODEL_ID;
+    return resolveModelSelection(localStorage.getItem('j2_selected_gemini_model'));
   });
   const [autoFallback, setAutoFallback] = useState<boolean>(() => {
     const saved = localStorage.getItem('j2_auto_fallback');
@@ -261,7 +261,7 @@ export default function App() {
           if (res.status === 429 || errBody.isQuotaExhausted) {
             setQuotaExhaustedAlert({
               model: errBody.modelUsed || selectedModel,
-              suggestedFallback: errBody.suggestedFallback || 'gemini-3.1-flash-lite'
+              suggestedFallback: errBody.suggestedFallback || GEMINI_FALLBACK_MODEL_ID
             });
           }
 
@@ -533,7 +533,7 @@ export default function App() {
         if (res.status === 429 || errData.isQuotaExhausted) {
           setQuotaExhaustedAlert({
             model: errData.modelUsed || selectedModel,
-            suggestedFallback: errData.suggestedFallback || 'gemini-3.1-flash-lite'
+            suggestedFallback: errData.suggestedFallback || GEMINI_FALLBACK_MODEL_ID
           });
         }
       }
@@ -608,13 +608,13 @@ export default function App() {
             <Zap className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs sm:text-sm space-y-2">
               <div className="font-semibold text-rose-300 flex items-center gap-2 flex-wrap">
-                <span>Free Tier API Quota or Rate Limit Reached for {quotaExhaustedAlert.model}</span>
+                <span>API Quota or Rate Limit Reached for {quotaExhaustedAlert.model}</span>
                 <span className="text-[10px] bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/30 uppercase tracking-wide">
                   429 Quota Exhausted
                 </span>
               </div>
               <p className="text-rose-200/90 leading-relaxed text-xs">
-                Your request quota for <strong>{quotaExhaustedAlert.model}</strong> is currently exhausted. Switch to <strong>{quotaExhaustedAlert.suggestedFallback}</strong> to continue generating with a separate free-tier quota pool.
+                Your request quota for <strong>{quotaExhaustedAlert.model}</strong> is currently exhausted. Switch to <strong>{quotaExhaustedAlert.suggestedFallback}</strong> to try another supported model. Availability depends on your account quota and billing.
               </p>
               <div className="flex items-center gap-2 pt-1 flex-wrap">
                 <button
@@ -651,7 +651,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 text-xs sm:text-sm">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>
-                <strong>Automatic Quota Protection:</strong> Free tier quota for <em>{fallbackSuccessNotice.originalModel}</em> was exhausted. Your request was seamlessly fulfilled using <strong>{fallbackSuccessNotice.usedModel}</strong>.
+                <strong>Automatic Quota Protection:</strong> The request for <em>{fallbackSuccessNotice.originalModel}</em> could not complete. Your request was fulfilled using <strong>{fallbackSuccessNotice.usedModel}</strong>.
               </span>
             </div>
             <button
@@ -877,4 +877,3 @@ export default function App() {
     </div>
   );
 }
-

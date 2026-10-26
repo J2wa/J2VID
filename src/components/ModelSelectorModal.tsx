@@ -64,7 +64,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                 Select AI Model &amp; Provider
               </h2>
               <p className="text-xs text-zinc-400">
-                Google Gemini + OpenRouter support for unlimited rate-limit protection
+                Current multimodal models for Gemini and OpenRouter
               </p>
             </div>
           </div>
@@ -135,7 +135,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                 <span className="text-[10px] text-zinc-400">Environment Variables</span>
               </div>
               <p className="text-zinc-300/90 leading-relaxed text-[11px]">
-                To route requests through OpenRouter (for free community models like Llama 3.2, Qwen 2.5, or paid models with no Google rate limits), add your key to your environment variables:
+                To use current multimodal models through OpenRouter, add your key to your environment variables. OpenRouter credits and rate limits apply:
               </p>
               <div className="bg-black/50 border border-zinc-800 rounded-xl p-3 space-y-2 font-mono text-[11px]">
                 <div className="flex items-center justify-between text-zinc-400">
@@ -175,7 +175,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
             <div className="space-y-1">
               <span className="font-semibold text-blue-300">Free Tier Quota Strategy:</span>
               <p className="text-blue-200/80 leading-relaxed text-[11px]">
-                If your Google Gemini free tier hits a <span className="font-mono bg-blue-900/50 px-1 py-0.5 rounded text-blue-300">429 (Resource Exhausted)</span> rate limit, switch to <strong>Gemini 3.1 Flash Lite</strong> for a separate Google bucket, or choose an <strong>OpenRouter Free Tier</strong> model to bypass Gemini limits entirely!
+                If a request hits a rate limit, try Gemini 3.5 Flash-Lite or an OpenRouter model. Availability depends on your account, credits and provider limits. Keys from the same Google project share its quota.
               </p>
             </div>
           </div>
@@ -241,7 +241,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                   Automatic Quota Fallback
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  If the current model hits a 429 quota exhaustion, automatically failover to Flash Lite or OpenRouter without stopping your run.
+                  Try configured backup keys and supported fallback models on quota or model availability errors. A retry can still fail if account limits apply.
                 </p>
               </div>
             </div>

@@ -13,6 +13,7 @@ test('starting and segment backgrounds reach Gemini and OpenRouter generation an
   const values = new Map<string, any>();
   const expiries = new Map<string, number>();
   let outage = false;
+  let unavailableFlash = false;
   const providerRequests: Array<{ url: string; body: any }> = [];
   globalThis.fetch = async (input, init) => {
     const url = String(input);
@@ -23,6 +24,9 @@ test('starting and segment backgrounds reach Gemini and OpenRouter generation an
     }
     if (url.includes('generativelanguage.googleapis.com') || url.includes('openrouter.ai')) {
       providerRequests.push({ url, body: JSON.parse(String(init?.body)) });
+      if (unavailableFlash && url.includes('/gemini-3.8-flash:')) {
+        return Response.json({ error: { code: 404, message: 'Model unavailable' } }, { status: 404 });
+      }
       const result = { video_duration: '00:00:05.000', suitability: { status: 'suitable', category: 'Documentary', confidence: 0.9, reason: 'Movement' },
         scenes: [{ scene_id: 1, narrative_description: 'A person walks across the room.' }], subtitles: [], revised_description: 'A person enters the room.' };
       return Response.json(url.includes('openrouter')
@@ -82,7 +86,16 @@ test('starting and segment backgrounds reach Gemini and OpenRouter generation an
     const invalid = await post('/api/transcribe-audio', { subtitleProvider: 'unknown', audioData: 'YQ==' }, cookie);
     assert.equal(invalid.status, 400);
     process.env.GEMINI_API_KEY = savedGemini;
-    for (const model of ['gemini-flash-latest' , 'openai/gpt-4o-mini']) {
+    unavailableFlash = true;
+    const fallback = await post('/api/revise-scene', { model: 'gemini-3.8-flash',
+      sceneId: 1, currentDescription: 'A person walks.', feedback: 'Clarify the action.' }, cookie);
+    assert.equal(fallback.status, 200);
+    assert.equal((await fallback.json())._modelUsed, 'gemini-3.5-flash-lite');
+    const attempts = providerRequests.slice(-2);
+    assert.match(attempts[0].url, /gemini-3.8-flash/);
+    assert.match(attempts[1].url, /gemini-3.5-flash-lite/);
+    unavailableFlash = false;
+    for (const model of ['gemini-4-argon', 'gemini-3.5-flash-lite', 'google/gemini-3.8-flash']) {
       const generated = await post('/api/annotate-video', { model, autoFallback: false, durationSeconds: 5,
         initialBackground: 'A city street in daylight', scenesInput: [
           { scene_id: 1, raw_description: 'A person walks.', initial_background: 'An office interior' },

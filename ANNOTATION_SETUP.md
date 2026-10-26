@@ -80,7 +80,7 @@ save the keys privately. Redeploy for changes to take effect.
 | GEMINI_AUDIO_API_KEY, GEMINI_AUDIO_API_KEY_2, GEMINI_AUDIO_API_KEY_3 | Dedicated Gemini subtitle pool: primary and two backups |
 | DEEPGRAM_API_KEY, DEEPGRAM_API_KEY_2, DEEPGRAM_API_KEY_3 | Deepgram speech subtitles: primary and two optional backups |
 | DEEPGRAM_MODEL | Optional pre-recorded multilingual model; default nova-3 |
-| GEMINI_AUDIO_MODEL | Optional compatible audio model; default gemini-flash-latest |
+| GEMINI_AUDIO_MODEL | Optional compatible audio model; default gemini-3.8-flash |
 
 Each pool accepts up to three ordered keys. The unsuffixed name is key 1; an _1
 suffix is also accepted as an alias. Empty values are skipped and duplicate values
@@ -119,3 +119,30 @@ backup keys, mixed-language word labels, millisecond rounding and malformed resp
 Authenticated route tests exercise Deepgram uploads and OpenRouter scene runs with
 Deepgram audio even when no Gemini key is configured. Live provider transcription and Vercel
 deployment still require the configured keys and a representative audio file.
+
+## API catalog update — 2026-10-26
+
+The model picker, server validation and health endpoints share one model catalog.
+Direct Gemini offers 3.8 Flash (default), 4 Argon (flagship) and 3.5 Flash-Lite
+(fallback). Gemini audio uses these generateContent-compatible models; dedicated
+Transcribe, Live, TTS and image-generation models are not sent to that endpoint.
+Saved legacy selections are migrated to current supported equivalents.
+
+Gemini calls retain JSON schemas but omit temperature overrides, following Google's
+Gemini 3 migration recommendation. Bounded automatic fallback covers quota errors,
+missing models and selected temporary service errors; input/schema errors are not
+retried as model failures. Auto Fallback can still be disabled. Backup keys remain
+server-only, and the health response only indicates configuration, not verified access.
+
+The Google SDK is updated to 2.31.0 (current npm release checked during the update).
+Google and OpenRouter calls have 120-second request timeouts. Deepgram still uses
+Nova-3 multilingual prerecorded recognition and remains the default subtitle provider.
+Existing key environment variable names remain supported. No deployed secret values
+were changed. Account-specific access, billing and live output require deployment testing.
+
+Sources reviewed:
+- https://ai.google.dev/gemini-api/docs/models
+- https://ai.google.dev/gemini-api/docs/deprecations
+- https://ai.google.dev/gemini-api/docs/gemini-3
+- https://openrouter.ai/api/v1/models
+- https://developers.deepgram.com/docs/model
