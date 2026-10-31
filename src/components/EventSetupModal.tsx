@@ -11,7 +11,7 @@ interface EventSetupModalProps {
   onSubmit: (data: {
     scenes: SceneInput[];
     globalBackground?: string;
-    audioData?: string;
+    audioFile?: File;
     audioFileName?: string;
   }) => void;
   initialScenes?: SceneInput[];
@@ -113,18 +113,12 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
   const [scenes, setScenes] = useState<SceneInput[]>([]);
   const [globalBackground, setGlobalBackground] = useState<string>('');
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
-  const [audioData, setAudioData] = useState<string | undefined>(undefined);
+  const [audioFile, setAudioFile] = useState<File | undefined>(undefined);
   const [audioFileName, setAudioFileName] = useState<string | undefined>(undefined);
 
   const handleAudioUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        setAudioData(e.target.result as string);
-        setAudioFileName(file.name);
-      }
-    };
-    reader.readAsDataURL(file);
+    setAudioFile(file);
+    setAudioFileName(file.name);
   };
 
   useEffect(() => {
@@ -257,7 +251,7 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
     onSubmit({
       scenes: scenes.map((sc, idx) => ({ ...sc, scene_id: idx + 1 })),
       globalBackground: globalBackground.trim(),
-      audioData,
+      audioFile,
       audioFileName
     });
     onClose();
@@ -384,7 +378,7 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
                   Upload MP3 Audio for Automatic Subtitles (Optional)
                 </span>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Upload an audio track to generate timed subtitles with your selected provider.
+                  Upload an audio track to generate timed subtitles. Large audio is split automatically before uploading.
                 </p>
               </div>
 
@@ -394,7 +388,7 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
                   <span className="font-semibold truncate max-w-[180px]">{audioFileName}</span>
                   <button
                     type="button"
-                    onClick={() => { setAudioData(undefined); setAudioFileName(undefined); }}
+                    onClick={() => { setAudioFile(undefined); setAudioFileName(undefined); }}
                     className="text-zinc-400 hover:text-rose-400 text-xs font-bold ml-1 p-0.5 rounded hover:bg-zinc-800"
                     title="Remove audio file"
                   >
@@ -575,4 +569,3 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
     </div>
   );
 };
-

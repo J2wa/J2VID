@@ -1,3 +1,4 @@
+import { transcribeAudioFile, audioTimestamp } from './utils/audioUpload';
 import { SubtitleProvider } from './types';
 import React, { useState, useEffect } from 'react';
 import { SAMPLE_VIDEOS } from './data/sampleVideos';
@@ -171,7 +172,7 @@ export default function App() {
   const runAgentPipelineOnScenes = async (
     scenesInput: SceneInput[],
     bgContext?: string,
-    audioData?: string,
+    audioFile?: File,
     audioFileName?: string
   ) => {
     if (!scenesInput || scenesInput.length === 0) return;
@@ -184,7 +185,7 @@ export default function App() {
     setCurrentStepIndex(0);
 
     // Calculate approximate duration from final scene count
-    const totalSec = scenesInput.length * 15;
+    let totalSec = scenesInput.length * 15;
     setDuration(totalSec);
 
     // Reset step statuses
@@ -200,13 +201,23 @@ export default function App() {
       updateStepStatus(0, 'in_progress', ['Inspecting scene entry guidance and uploaded snapshot frames...']);
       await delay(500);
       updateStepStatus(0, 'completed', [
-        `Received ${scenesInput.length} scene entries${audioFileName ? ` + MP3 Audio (${audioFileName})` : ''}`
+        `Received ${scenesInput.length} scene entries${audioFileName ? ` + Audio (${audioFileName})` : ''}`
       ]);
 
       // Step 2: Assess Suitability
       setCurrentStepIndex(1);
       updateStepStatus(1, 'in_progress', ['Evaluating visual action progression across snapshots and audio tracks...']);
       await delay(500);
+
+      // Send audio in bounded requests before generating scenes, never in the image payload.
+      const audioResult = audioFile ? await transcribeAudioFile(audioFile, {
+        subtitleProvider, autoFallback,
+        onProgress: message => updateStepStatus(1, 'in_progress', [message])
+      }) : undefined;
+      if (audioResult) {
+        totalSec = audioResult.duration;
+        setDuration(totalSec);
+      }
 
       // Call Express server endpoint /api/annotate-video
       let resultData: VideoAnnotationResult;
@@ -219,7 +230,6 @@ export default function App() {
             scenesInput,
             initialBackground: bgContext || undefined,
             durationSeconds: totalSec,
-            audioData,
             subtitleProvider,
             model: selectedModel,
             autoFallback
@@ -273,9 +283,15 @@ export default function App() {
         resultData = buildFallbackResult(scenesInput, totalSec, bgContext);
       }
 
+      if (audioResult) {
+        resultData.subtitles = audioResult.subtitles;
+        resultData.video_duration = audioTimestamp(audioResult.duration);
+      }
+
       updateStepStatus(1, 'completed', [
         `Suitability: ${resultData.suitability.status.toUpperCase()}`,
-        `Confidence: ${(resultData.suitability.confidence * 100).toFixed(0)}%`
+        `Confidence: ${(resultData.suitability.confidence * 100).toFixed(0)}%`,
+        ...(audioResult?.warnings || [])
       ]);
 
       // Step 3: Verify Boundaries
@@ -318,6 +334,9 @@ export default function App() {
       setActiveSceneIndex(0);
       setActiveTab('annotations');
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Audio or annotation processing failed.';
+      setApiError(message);
+      updateStepStatus(1, 'failed', [message]);
       console.error('Agent execution error:', error);
     } finally {
       setIsAnalyzing(false);
@@ -849,8 +868,8 @@ export default function App() {
         isOpen={isSetupModalOpen}
         onClose={() => setIsSetupModalOpen(false)}
         initialScenes={configuredScenes}
-        onSubmit={({ scenes, globalBackground, audioData, audioFileName }) => {
-          runAgentPipelineOnScenes(scenes, globalBackground, audioData, audioFileName);
+        onSubmit={({ scenes, globalBackground, audioFile, audioFileName }) => {
+          runAgentPipelineOnScenes(scenes, globalBackground, audioFile, audioFileName);
         }}
       />
 
