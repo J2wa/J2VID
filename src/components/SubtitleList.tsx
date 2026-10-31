@@ -38,6 +38,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   const [transcribeNotice, setTranscribeNotice] = useState<string | null>(null);
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
   const [uploadedAudioName, setUploadedAudioName] = useState<string | null>(null);
+  const [retryAudioFile, setRetryAudioFile] = useState<File | null>(null);
 
   useEffect(() => () => {
     if (uploadedAudioUrl) URL.revokeObjectURL(uploadedAudioUrl);
@@ -46,6 +47,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   const handleMp3FileUpload = async (file: File) => {
     try {
       setIsTranscribing(true);
+      setRetryAudioFile(null);
       setTranscribeNotice(`Uploading ${file.name} and generating timed subtitles with ${subtitleProvider === 'deepgram' ? 'Deepgram' : 'Gemini'}...`);
 
       const audioObjectUrl = URL.createObjectURL(file);
@@ -59,6 +61,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
       setTranscribeNotice(`Generated ${data.subtitles.length} subtitles from ${data.parts} audio part(s). Review the wording and timing.` +
         (data.warnings.length ? ' ' + data.warnings.join(' ') : ''));
     } catch (err: any) {
+      setRetryAudioFile(file);
       console.error('Error reading MP3 file:', err);
       setIsTranscribing(false);
       setTranscribeNotice(`Error: ${err.message || 'Failed to transcribe audio'}`);
@@ -192,6 +195,12 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             )}
             <span className="font-medium">{transcribeNotice}</span>
           </div>
+          {retryAudioFile && !isTranscribing && (
+            <button type="button" onClick={() => handleMp3FileUpload(retryAudioFile)}
+              className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-500">
+              Retry remaining audio
+            </button>
+          )}
           {uploadedAudioUrl && (
             <audio controls src={uploadedAudioUrl} className="h-8 max-w-[220px] rounded-lg border border-zinc-700" />
           )}

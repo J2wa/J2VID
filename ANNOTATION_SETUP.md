@@ -123,8 +123,19 @@ Audio is no longer included in the scene image request.
 Parts are transcribed sequentially through the existing authenticated audio route,
 using the selected provider (Deepgram by default) and server-side key pools. If a
 gateway responds with HTTP 413, only the rejected part is divided into smaller
-pieces; completed parts are not resent during that run. Other failures stop with
-a visible error. Existing subtitles are replaced only after every part succeeds.
+pieces; completed parts are not resent during that run. A subtitle end extending
+up to two seconds beyond a part is clipped with a review warning. Larger overruns,
+starts outside a part, reversed ranges or malformed timestamps trigger up to two
+levels of smaller-part recovery (normally 60 → 30 → 15 seconds). Invalid responses
+are rejected as a whole, so earlier lines cannot be duplicated during recovery.
+Persistent failures show the part number and timing details without publishing
+partial results. Existing subtitles are replaced only after every part succeeds.
+
+Completed parts remain in memory for retrying the same selected File with the
+same provider and fallback setting while the page stays open. The subtitle panel
+offers **Retry remaining audio** after failure. In scene setup, reopen setup and
+submit again with the retained audio selection. Reloading the page or selecting
+a new File starts a new job; checkpoints are not saved to browser storage.
 
 Chunk-relative timestamps are shifted onto the original audio timeline, sorted
 and renumbered while preserving overlapping speakers. Scene setup uses the decoded

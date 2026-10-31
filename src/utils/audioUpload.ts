@@ -9,7 +9,16 @@ export interface DecodedAudio {
   numberOfChannels: number;
   getChannelData(channel: number): Float32Array;
 }
-interface Range { start: number; end: number }
+interface Range { start: number; end: number; timingSplits?: number }
+class ChunkTimingError extends Error {}
+
+// Keep completed requests in memory for a retry with the same File and settings.
+// Nothing is persisted to browser storage or shared between files/providers.
+export function createAudioCheckpoint(audio: DecodedAudio) {
+  return { ranges: planAudioChunks(audio), index: 0, subtitles: [] as SubtitleAnnotation[],
+    warnings: new Set<string>(), sampleRate: audio.sampleRate, length: audio.length };
+}
+const fileCheckpoints = new WeakMap<File, Map<string, ReturnType<typeof createAudioCheckpoint>>>();
 
 export function planAudioChunks(audio: DecodedAudio): Range[] {
   if (!Number.isFinite(audio.sampleRate) || audio.sampleRate <= 0 || audio.length < 1) {
@@ -45,7 +54,7 @@ function base64(bytes: Uint8Array): string {
 }
 function seconds(timestamp: string): number {
   const match = /^(\d{2,}):([0-5]\d):([0-5]\d)\.(\d{3})$/.exec(timestamp);
-  if (!match) throw new Error('The subtitle provider returned an invalid timestamp.');
+  if (!match) throw new ChunkTimingError('The subtitle provider returned an invalid timestamp.');
   return +match[1] * 3600 + +match[2] * 60 + +match[3] + +match[4] / 1000;
 }
 export function audioTimestamp(seconds: number): string {
@@ -59,12 +68,14 @@ export async function transcribeDecodedAudio(audio: DecodedAudio, options: {
   autoFallback?: boolean;
   fileName?: string;
   onProgress?: (message: string) => void;
-}, request: typeof fetch = fetch) {
-  const ranges = planAudioChunks(audio);
-  const subtitles: SubtitleAnnotation[] = [];
-  const warnings = new Set<string>();
-  let completed = 0;
-  for (let index = 0; index < ranges.length;) {
+}, request: typeof fetch = fetch, checkpoint = createAudioCheckpoint(audio)) {
+  if (checkpoint.sampleRate !== audio.sampleRate || checkpoint.length !== audio.length) {
+    throw new Error('The audio changed. Choose the file again to start a new transcription.');
+  }
+  const { ranges, subtitles, warnings } = checkpoint;
+  if (checkpoint.index) options.onProgress?.('Resuming audio after ' + checkpoint.index + ' completed parts…');
+  while (checkpoint.index < ranges.length) {
+    const index = checkpoint.index;
     const range = ranges[index];
     options.onProgress?.('Transcribing audio part ' + (index + 1) + ' of ' + ranges.length + '…');
     const body = JSON.stringify({ audioData: base64(encodeWav(audio, range)), audioMimeType: 'audio/wav',
@@ -77,35 +88,66 @@ export async function transcribeDecodedAudio(audio: DecodedAudio, options: {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' }, body
       });
     } catch {
-      throw new Error('Audio part ' + (index + 1) + ' failed after ' + completed + ' completed parts. Check your connection and retry.');
+      throw new Error('Audio part ' + (index + 1) + ' failed after ' + index + ' completed parts. Check your connection and retry.');
     }
     // Some gateways have a smaller cap. Re-split only the rejected part, not completed work.
     if (response.status === 413 && range.end - range.start > audio.sampleRate) {
       const middle = Math.floor((range.start + range.end) / 2);
-      ranges.splice(index, 1, { start: range.start, end: middle }, { start: middle, end: range.end });
+      ranges.splice(index, 1, { ...range, end: middle }, { ...range, start: middle });
       options.onProgress?.('Upload size limit reached. Splitting this audio part into smaller pieces…');
       continue;
     }
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error('Audio part ' + (index + 1) + ' failed after ' + completed +
+    if (!response.ok) throw new Error('Audio part ' + (index + 1) + ' failed after ' + index +
       ' completed parts. ' + (data?.error || (response.status === 413 ? 'The upload gateway rejected even a small audio part.' : 'Transcription failed. Please retry.')));
     if (!Array.isArray(data?.subtitles)) throw new Error('Audio part ' + (index + 1) + ' returned no subtitle array.');
     const offset = range.start / audio.sampleRate;
     const length = (range.end - range.start) / audio.sampleRate;
-    for (const sub of data.subtitles as SubtitleAnnotation[]) {
-      const start = seconds(sub.start_time), end = seconds(sub.end_time);
-      if (typeof sub.text !== 'string' || !sub.text.trim() || start >= length || end <= start || end > length + 0.5) {
-        throw new Error('Audio part ' + (index + 1) + ' returned an invalid subtitle range.');
+    // Validate the whole response before adding anything, so a retry cannot duplicate
+    // earlier lines from a partly valid response. Only small boundary drift is clipped.
+    const chunkSubtitles: SubtitleAnnotation[] = [];
+    let clipped = false;
+    try {
+      for (const [lineIndex, sub] of (data.subtitles as SubtitleAnnotation[]).entries()) {
+        if (!sub || typeof sub.text !== 'string' || !sub.text.trim()) {
+          throw new Error('Audio part ' + (index + 1) + ' returned an empty subtitle.');
+        }
+        const start = seconds(sub.start_time), end = seconds(sub.end_time);
+        if (start >= length || end <= start || end > length + 2) {
+          throw new ChunkTimingError('Subtitle ' + (lineIndex + 1) + ' has range ' + sub.start_time +
+            '–' + sub.end_time + ' for a ' + length.toFixed(3) + '-second audio part.');
+        }
+        const startTime = audioTimestamp(offset + start);
+        const endTime = audioTimestamp(offset + Math.min(end, length));
+        if (seconds(endTime) <= seconds(startTime)) {
+          throw new ChunkTimingError('A subtitle collapses at the audio boundary after millisecond rounding.');
+        }
+        clipped ||= end > length;
+        chunkSubtitles.push({ ...sub, start_time: startTime, end_time: endTime });
       }
-      subtitles.push({ ...sub, start_time: audioTimestamp(offset + start),
-        end_time: audioTimestamp(offset + Math.min(end, length)) });
+    } catch (error) {
+      if (!(error instanceof ChunkTimingError)) throw error;
+      // Two levels (60 → 30 → 15 seconds) bound provider calls for bad timing.
+      if ((range.timingSplits || 0) < 2 && range.end - range.start >= audio.sampleRate * 2) {
+        const middle = Math.floor((range.start + range.end) / 2);
+        const timingSplits = (range.timingSplits || 0) + 1;
+        ranges.splice(index, 1, { start: range.start, end: middle, timingSplits },
+          { start: middle, end: range.end, timingSplits });
+        options.onProgress?.('Audio part ' + (index + 1) + ' had invalid timing. Retrying just this part in smaller pieces…');
+        warnings.add('Some audio parts needed smaller chunks to recover subtitle timing. Review those boundaries.');
+        continue;
+      }
+      throw new Error('Audio part ' + (index + 1) + ' returned invalid subtitle timing after ' + index +
+        ' completed parts. ' + error.message + ' Completed parts are kept while this page stays open; retry the same file.');
     }
+    subtitles.push(...chunkSubtitles);
+    if (clipped) warnings.add('Some subtitle ends were clipped to the audio boundary (up to 2 seconds). Review those endings.');
     for (const warning of data._warnings || []) if (typeof warning === 'string') warnings.add(warning);
-    completed++; index++;
+    checkpoint.index++;
   }
   subtitles.sort((a, b) => seconds(a.start_time) - seconds(b.start_time));
   return { subtitles: subtitles.map((sub, index) => ({ ...sub, subtitle_id: index + 1 })),
-    duration: audio.length / audio.sampleRate, warnings: [...warnings], parts: completed };
+    duration: audio.length / audio.sampleRate, warnings: [...warnings], parts: checkpoint.index };
 }
 
 export async function transcribeAudioFile(file: File, options: Parameters<typeof transcribeDecodedAudio>[1]) {
@@ -121,5 +163,9 @@ export async function transcribeAudioFile(file: File, options: Parameters<typeof
   } finally {
     await context.close();
   }
-  return transcribeDecodedAudio(decoded, { ...options, fileName: file.name });
+  const settings = options.subtitleProvider + ':' + (options.autoFallback !== false);
+  const checkpoints = fileCheckpoints.get(file) || new Map();
+  if (!checkpoints.has(settings)) checkpoints.set(settings, createAudioCheckpoint(decoded));
+  fileCheckpoints.set(file, checkpoints);
+  return transcribeDecodedAudio(decoded, { ...options, fileName: file.name }, fetch, checkpoints.get(settings));
 }
