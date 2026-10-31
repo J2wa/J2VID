@@ -1,5 +1,6 @@
+import { transcribeAudioFile } from '../utils/audioUpload';
 import { SubtitleProviderSelector } from './SubtitleProviderSelector';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Play, Edit3, Plus, Trash2, Search, Volume2, Music, Mic, Radio, Bell, Upload, Loader2, CheckCircle2 } from 'lucide-react';
 import { SubtitleAnnotation, SubtitleType, SubtitleProvider } from '../types';
 import { parseTimestampToSeconds } from '../utils/timeUtils';
@@ -38,6 +39,10 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
   const [uploadedAudioName, setUploadedAudioName] = useState<string | null>(null);
 
+  useEffect(() => () => {
+    if (uploadedAudioUrl) URL.revokeObjectURL(uploadedAudioUrl);
+  }, [uploadedAudioUrl]);
+
   const handleMp3FileUpload = async (file: File) => {
     try {
       setIsTranscribing(true);
@@ -47,32 +52,12 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
       setUploadedAudioUrl(audioObjectUrl);
       setUploadedAudioName(file.name);
 
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read the audio file.'));
-        reader.onabort = () => reject(new Error('Audio file reading was cancelled.'));
-        reader.readAsDataURL(file);
+      const data = await transcribeAudioFile(file, {
+        subtitleProvider, autoFallback, onProgress: setTranscribeNotice
       });
-      const res = await fetch('/api/transcribe-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
-        body: JSON.stringify({ audioData: dataUrl, audioMimeType: file.type || 'audio/mpeg',
-          fileName: file.name, autoFallback, subtitleProvider })
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || (res.status === 413
-          ? 'Audio upload is too large. Split the audio into smaller files and retry.'
-          : res.status === 504 ? 'Transcription timed out. Try a shorter audio file.'
-          : 'Transcription failed. Please retry.'));
-      }
-      if (!Array.isArray(data?.subtitles)) throw new Error('The server returned no subtitle array.');
       onSubtitlesGenerated?.(data.subtitles);
-      setTranscribeNotice(data.subtitles.length
-        ? `Generated ${data.subtitles.length} subtitles from ${file.name}. Review the wording and timing against the audio.`
-        : 'No speech entries detected. Review the audio to confirm.');
-      if (data._warnings?.length) setTranscribeNotice('Review: ' + data._warnings.join(' '));
+      setTranscribeNotice(`Generated ${data.subtitles.length} subtitles from ${data.parts} audio part(s). Review the wording and timing.` +
+        (data.warnings.length ? ' ' + data.warnings.join(' ') : ''));
     } catch (err: any) {
       console.error('Error reading MP3 file:', err);
       setIsTranscribing(false);
@@ -189,9 +174,10 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
         <SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange} disabled={isTranscribing} />
       </div>
 
+      <p className="mb-3 text-xs text-zinc-400">Audio is split automatically into smaller uploads. Subtitle times stay aligned to the original audio.</p>
       {/* Transcription Notice / Loading Banner */}
       {transcribeNotice && (
-        <div className={`p-3 rounded-xl text-xs flex items-center justify-between gap-3 ${
+        <div role="status" aria-live="polite" className={`p-3 rounded-xl text-xs flex items-center justify-between gap-3 ${
           isTranscribing 
             ? 'bg-indigo-950/70 border border-indigo-500/50 text-indigo-200' 
             : transcribeNotice.startsWith('Error')
@@ -291,4 +277,3 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
     </div>
   );
 };
-

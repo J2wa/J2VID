@@ -112,6 +112,29 @@ Possible future extensions, pending owner confirmation:
 
 ## Validation
 
+### Automatic subtitle upload splitting
+
+Both the subtitle upload button and audio attached during scene setup split audio
+automatically in the browser. Audio is decoded locally and converted into playable
+mono PCM WAV parts of at most 60 seconds and 2 MiB each. Each JSON request stays
+below 3.5 MB, including base64 overhead, before reaching Vercel's upload gateway.
+Audio is no longer included in the scene image request.
+
+Parts are transcribed sequentially through the existing authenticated audio route,
+using the selected provider (Deepgram by default) and server-side key pools. If a
+gateway responds with HTTP 413, only the rejected part is divided into smaller
+pieces; completed parts are not resent during that run. Other failures stop with
+a visible error. Existing subtitles are replaced only after every part succeeds.
+
+Chunk-relative timestamps are shifted onto the original audio timeline, sorted
+and renumbered while preserving overlapping speakers. Scene setup uses the decoded
+audio duration. Progress and provider review warnings remain visible. Review words
+and timing near chunk boundaries. The browser must support decoding the uploaded
+format and have enough memory to decode the file; a decode error asks for a
+supported format rather than uploading the oversized original.
+
+Vercel request limit reference: https://vercel.com/docs/functions/limitations
+
 Run npm run lint, npm run build, and node --import tsx --test tests/*.test.ts.
 Tests include a mocked Gemini SDK HTTP response, wrong-model routing, malformed results,
 silence, overlapping ranges and review warnings. Deepgram tests cover binary upload,
