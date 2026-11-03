@@ -352,7 +352,7 @@ export default function App() {
       </main>
       <footer className="aces-footer"><a href="https://acesintelligence.xyz">ACES INTELLIGENCE</a><span>Video annotation workspace</span></footer>
 
-      {previewScene && <SceneDescriptionDialog scene={previewScene} isProcessing={isAnalyzing} onClose={() => setPreviewScene(null)} />}
+      {previewScene && <SceneDescriptionDialog scene={previewScene} scenes={annotationResult?.scenes || []} onSelectScene={setPreviewScene} isProcessing={isAnalyzing} onClose={() => setPreviewScene(null)} />}
 
       {/* Pop-up Event & Scene Configurator Modal */}
       <EventSetupModal
