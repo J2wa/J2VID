@@ -237,8 +237,12 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
     }
   };
 
+  const readyScenes = scenes.filter(scene => scene.start_image || scene.snapshot_image || scene.raw_description.trim());
+  const canProcess = !isPreparing && scenes.length > 0 && readyScenes.length === scenes.length;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canProcess) return;
     onSubmit({
       scenes: scenes.map((sc, idx) => ({ ...sc, scene_id: idx + 1 })),
       globalBackground: globalBackground.trim(),
@@ -252,9 +256,24 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
     <section role="dialog" aria-modal="true" aria-labelledby="upload-title" className="aces-upload-dialog rounded-3xl shadow-2xl bg-zinc-900 border border-zinc-700 w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 sm:p-8">
       <div className="relative flex justify-center text-center items-center gap-4 mb-6 pr-10 pl-10"><h2 id="upload-title" className="text-2xl font-bold">Upload scene snapshots</h2><button className="absolute right-0 aces-nav-button" aria-label="Close uploads" disabled={isPreparing} onClick={onClose}><X/></button></div>
       {isPreparing ? <ProcessingScreen step={prepareStep} scenes={scenes}/> : <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="aces-upload-actions">
+          <div><strong>{readyScenes.length ? `${readyScenes.length} scenes ready` : 'Upload your snapshots'}</strong><p className="text-xs text-zinc-400 mt-1">Review your images, then start processing.</p></div>
+          <button className="aces-primary" type="submit" disabled={!canProcess}><Play size={17} aria-hidden="true"/> Start processing</button>
+        </div>
+        {readyScenes.length > 0 && <div className="aces-upload-gallery" aria-label="Uploaded scene thumbnails">
+          {scenes.map((scene, index) => {
+            const image = scene.start_image || scene.snapshot_image;
+            return <figure key={scene.id} className="aces-scene-preview">
+              <div className="aces-scene-image">{image ? <img src={image} alt={`Uploaded snapshot for scene ${index + 1}`}/> : <ImageIcon size={32} aria-hidden="true"/>}<span className="aces-scene-number">{String(index + 1).padStart(2, '0')}</span></div>
+              <figcaption><strong>Scene {index + 1}</strong><span>{image ? 'Image uploaded' : scene.raw_description.trim() ? 'Guidance added' : 'Needs image or guidance'}</span>
+                <button type="button" className="aces-nav-button" aria-label={`Remove scene ${index + 1}`} onClick={() => handleRemoveScene(scene.id)} disabled={scenes.length <= 1}><Trash2 size={14} aria-hidden="true"/> Remove</button>
+              </figcaption>
+            </figure>;
+          })}
+        </div>}
         <label className="block text-sm font-semibold">Background or location <span className="font-normal">(optional)</span><input autoFocus value={globalBackground} onChange={e => setGlobalBackground(e.target.value)} placeholder="Where does the video take place?" className="mt-2 w-full border border-zinc-700 p-3"/></label>
-        <label className="block rounded-2xl border border-dashed border-blue-300 bg-blue-50/50 p-6 text-center text-sm font-semibold">Choose snapshots<input type="file" accept="image/*" multiple onChange={e => handleMassImageUpload(e.target.files)} className="block mx-auto mt-4 max-w-full"/></label>
-        <p className="text-sm">{scenes.filter(scene => scene.start_image || scene.snapshot_image || scene.raw_description.trim()).length} scenes ready. We prepare and send up to 5 snapshots at a time, then automatically continue with the next batch.</p>
+        <label className="block rounded-2xl border border-dashed border-blue-300 bg-blue-50/50 p-6 text-center text-sm font-semibold">{readyScenes.length ? 'Replace snapshots' : 'Choose snapshots'}<input type="file" accept="image/*" multiple onChange={e => handleMassImageUpload(e.target.files)} className="block mx-auto mt-4 max-w-full"/></label>
+        <p className="text-sm text-center text-zinc-400">Processing starts only when you select Start processing. Images are processed in batches of up to 5.</p>
         {uploadNotice && <p role="status" className="text-sm">{uploadNotice}</p>}
         <details><summary className="cursor-pointer text-sm font-semibold">Review scenes & add optional guidance</summary><div className="space-y-4 mt-4">{scenes.map((scene,index) => <div key={scene.id} className="border border-zinc-700 p-4 space-y-3">
           <div className="flex justify-between"><strong>Scene {index + 1}</strong><button type="button" onClick={() => handleRemoveScene(scene.id)} disabled={scenes.length <= 1}>Remove</button></div>
@@ -264,7 +283,7 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
           <label className="block text-sm">Guidance (Tagalog or English)<textarea className="block w-full border border-zinc-700 p-2 mt-2" rows={2} value={scene.raw_description} onChange={e => handleUpdateScene(scene.id,{raw_description:e.target.value})}/></label>
         </div>)}<button className="aces-nav-button" type="button" onClick={handleAddScene}>+ Add scene</button></div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Include audio for subtitles (optional)</summary><div className="mt-4 space-y-3"><SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange}/><input aria-label="Audio for subtitles" type="file" accept="audio/*" onChange={e => {if(e.target.files?.[0])handleAudioUpload(e.target.files[0]);}}/>{audioFileName && <p>{audioFileName}</p>}</div></details>
-        <div className="flex justify-center gap-4 border-t border-zinc-700 pt-5"><button className="aces-secondary" type="button" onClick={onClose}>Cancel</button><button className="aces-primary" type="submit" disabled={!scenes.length || scenes.some(scene => !scene.start_image && !scene.snapshot_image && !scene.raw_description.trim())}>Generate descriptions</button></div>
+        <div className="flex justify-center gap-4 border-t border-zinc-700 pt-5"><button className="aces-secondary" type="button" onClick={onClose}>Cancel</button></div>
       </form>}
     </section>
   </div>;

@@ -134,3 +134,7 @@ input[type=file]::file-selector-button:hover { background:#dbeafe; }
 [data-theme="dark"] input[type=file]::file-selector-button { background:#18273e; color:#bfdbfe; border-color:#3d5270; }
 [data-theme="dark"] input[type=file]::file-selector-button:hover { background:#203b60; }
 [data-theme="dark"] h2.text-white,[data-theme="dark"] h4.text-white { color:#f1f5f9; }
+.aces-upload-actions { position:sticky; top:-1px; z-index:10; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:16px; background:var(--color-zinc-900); border:1px solid var(--color-zinc-800); border-radius:16px; box-shadow:0 4px 16px #0f172a0a; }
+.aces-upload-gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:14px; }
+.aces-upload-gallery .aces-nav-button { display:inline-flex; gap:6px; padding:6px 10px; min-height:32px; font-size:11px; margin-top:5px; }
+@media(max-width:600px) { .aces-upload-actions { justify-content:center; text-align:center; }.aces-upload-gallery { grid-template-columns:repeat(2,minmax(0,1fr)); } }
