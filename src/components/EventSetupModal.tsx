@@ -1,3 +1,4 @@
+import { ProcessingScreen } from './ProcessingScreen';
 import { SubtitleProviderSelector } from './SubtitleProviderSelector';
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Sparkles, Plus, Trash2, Upload, Image as ImageIcon, Globe, Play, ArrowUpDown, Layers, CheckCircle2, Music } from 'lucide-react';
@@ -19,7 +20,7 @@ interface EventSetupModalProps {
 
 // Helper: Resize and compress image to optimized data URL for fast API transmission
 export function resizeImageToDataUrl(file: File, maxDim = 1024): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -46,9 +47,10 @@ export function resizeImageToDataUrl(file: File, maxDim = 1024): Promise<string>
           resolve(e.target?.result as string || '');
         }
       };
-      img.onerror = () => resolve(e.target?.result as string || '');
+      img.onerror = () => reject(new Error('Unable to decode image.'));
       img.src = e.target?.result as string || '';
     };
+    reader.onerror = () => reject(new Error('Unable to read image.'));
     reader.readAsDataURL(file);
   });
 }
@@ -110,6 +112,8 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
   onSubmit,
   initialScenes
 }) => {
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [prepareStep, setPrepareStep] = useState('');
   const [scenes, setScenes] = useState<SceneInput[]>([]);
   const [globalBackground, setGlobalBackground] = useState<string>('');
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
@@ -189,29 +193,16 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     });
 
-    // Read and compress files concurrently
-    const readPromises = fileArray.map((file) => {
-      return new Promise<{ file: File; dataUrl: string; frameNum: number }>(async (resolve) => {
-        try {
-          const resized = await resizeImageToDataUrl(file, 1024);
-          resolve({
-            file,
-            dataUrl: resized,
-            frameNum: parseFrameNumberFromFilename(file.name)
-          });
-        } catch {
-          resolve({
-            file,
-            dataUrl: '',
-            frameNum: parseFrameNumberFromFilename(file.name)
-          });
-        }
-      });
-    });
-
+    setIsPreparing(true);
     try {
-      const loaded = await Promise.all(readPromises);
-
+      const loaded: {file: File; dataUrl: string; frameNum: number}[] = [];
+      for (let offset = 0; offset < fileArray.length; offset += 5) {
+        setPrepareStep(`Preparing images ${offset + 1}–${Math.min(offset + 5, fileArray.length)} of ${fileArray.length}`);
+        const batch = await Promise.all(fileArray.slice(offset, offset + 5).map(async file => ({
+          file, dataUrl: await resizeImageToDataUrl(file, 1024), frameNum: parseFrameNumberFromFilename(file.name)
+        })));
+        loaded.push(...batch);
+      }
       // Create new scenes sorted from lower frame count to higher count
       const newScenes: SceneInput[] = loaded.map((item, idx) => {
         const displayFrameText = item.frameNum !== Infinity ? `Frame #${item.frameNum}` : item.file.name;
@@ -232,8 +223,8 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
 
       setTimeout(() => setUploadNotice(null), 6000);
     } catch (err) {
-      console.error('Error during mass image upload:', err);
-    }
+      setUploadNotice('Could not prepare images. Please try again.');
+    } finally { setIsPreparing(false); }
   };
 
   const handleLoadPreset = (presetIdx: number) => {
@@ -257,315 +248,24 @@ export const EventSetupModal: React.FC<EventSetupModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden relative my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
-        {/* Modal Header */}
-        <div className="p-5 border-b border-zinc-800 bg-zinc-950/80 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-xl">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  STAGE 1: SNAPSHOTS & GUIDANCE
-                </span>
-              </div>
-              <h2 className="text-base font-bold text-white mt-1">
-                Configure Scenes, Snapshots & Guidance
-              </h2>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Modal Scrollable Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-6 text-xs flex-1">
-          <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4">
-            <label htmlFor="starting-location" className="text-sm font-bold text-zinc-100 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-              Before you start: where does the video take place?
-            </label>
-            <p id="starting-location-help" className="text-xs text-zinc-400 leading-relaxed">
-              Optional: describe the starting location, background and time of day if known.
-              This guides the descriptions; each segment can have a different setting.
-              Leave it blank when unsure so only visible details are used.
-            </p>
-            <textarea
-              id="starting-location"
-              aria-describedby="starting-location-help"
-              rows={2}
-              value={globalBackground}
-              onChange={(e) => setGlobalBackground(e.target.value)}
-              placeholder="e.g. Outside on a city street in daylight, with shops and passing traffic. Tagalog or English is welcome."
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl p-3 text-zinc-100 text-xs focus:outline-none transition-all"
-            />
-          </div>
-
-          {/* Mass Upload Banner Section */}
-          <div className="bg-gradient-to-r from-indigo-950/70 via-zinc-900 to-indigo-950/70 border border-indigo-500/30 rounded-2xl p-4 space-y-3 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-indigo-200 flex items-center gap-2">
-                  <ArrowUpDown className="w-4 h-4 text-indigo-400" />
-                  Mass Upload Images & Auto-Arrange by Frame Count
-                </span>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  Select multiple frame snapshot images at once. The system automatically sorts them from lower frame count to higher frame count (e.g. <span className="font-mono text-indigo-300">frame_001.jpg</span> → <span className="font-mono text-indigo-300">frame_010.jpg</span>) and assigns 1 snapshot per scene.
-                </p>
-              </div>
-
-              <label className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-600/30 cursor-pointer flex items-center gap-2 text-xs shrink-0 self-start sm:self-center">
-                <Upload className="w-4 h-4" />
-                <span>Mass Upload Images</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => handleMassImageUpload(e.target.files)}
-                />
-              </label>
-            </div>
-
-            {uploadNotice && (
-              <div className="flex items-center gap-2 p-2.5 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 rounded-xl text-[11px] font-medium animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{uploadNotice}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Preset Quick Load Bar */}
-          <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-400" /> Quick Test Presets
-              </span>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Load pre-filled Tagalog or English guidance notes to test Gemini translation & guidelines compliance.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {SAMPLE_PRESETS.map((p, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleLoadPreset(idx)}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg text-xs font-medium transition-all"
-                >
-                  {p.label.split(' ')[0]} Preset
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange} />
-
-          {/* Optional MP3 Audio Upload */}
-          <div className="bg-zinc-950/80 border border-amber-500/30 rounded-2xl p-4 space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <Music className="w-4 h-4 text-amber-400" />
-                  Upload MP3 Audio for Automatic Subtitles (Optional)
-                </span>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Upload an audio track to generate timed subtitles. Large audio is split automatically before uploading.
-                </p>
-              </div>
-
-              {audioFileName ? (
-                <div className="flex items-center gap-2 bg-amber-950/80 border border-amber-500/50 text-amber-200 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0">
-                  <Music className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-semibold truncate max-w-[180px]">{audioFileName}</span>
-                  <button
-                    type="button"
-                    onClick={() => { setAudioFile(undefined); setAudioFileName(undefined); }}
-                    className="text-zinc-400 hover:text-rose-400 text-xs font-bold ml-1 p-0.5 rounded hover:bg-zinc-800"
-                    title="Remove audio file"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <label className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-all text-xs cursor-pointer flex items-center gap-2 shrink-0 shadow-md shadow-amber-600/30">
-                  <Upload className="w-4 h-4" />
-                  <span>Upload MP3 Audio</span>
-                  <input
-                    type="file"
-                    accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleAudioUpload(f);
-                    }}
-                  />
-                </label>
-              )}
-            </div>
-          </div>
-
-          {/* Scenes Input List */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-              <span className="text-xs font-bold text-zinc-100 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-indigo-400" /> Configured Scenes ({scenes.length})
-              </span>
-              <button
-                type="button"
-                onClick={handleAddScene}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition-colors flex items-center gap-1.5 text-xs shadow-md shadow-indigo-600/20"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Single Scene
-              </button>
-            </div>
-
-            {scenes.map((scene, idx) => (
-              <div
-                key={scene.id}
-                className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-4 space-y-4 relative group hover:border-zinc-700 transition-all"
-              >
-                {/* Scene Header */}
-                <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-lg bg-indigo-600/30 text-indigo-300 font-bold font-mono text-xs flex items-center justify-center border border-indigo-500/30">
-                      #{idx + 1}
-                    </span>
-                    <h3 className="font-bold text-zinc-100 text-xs">Scene #{idx + 1}</h3>
-                    {scene.frame_count !== undefined && (
-                      <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                        Frame #{scene.frame_count}
-                      </span>
-                    )}
-                  </div>
-
-                  {scenes.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveScene(scene.id)}
-                      className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors flex items-center gap-1 text-[11px]"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Remove
-                    </button>
-                  )}
-                </div>
-
-                {/* Single Snapshot Image Uploader */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold text-zinc-300 flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
-                    Scene Snapshot Frame Image
-                  </label>
-
-                  {scene.start_image ? (
-                    <div className="relative rounded-xl overflow-hidden border border-indigo-500/50 aspect-video group/img bg-zinc-900 max-w-md">
-                      <img src={scene.start_image} alt={`Scene #${idx + 1} snapshot`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateScene(scene.id, { start_image: undefined })}
-                          className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-[11px] rounded-lg font-semibold transition-colors"
-                        >
-                          Replace / Remove
-                        </button>
-                      </div>
-                      <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/80 text-[10px] text-indigo-300 font-mono rounded border border-indigo-500/30">
-                        Scene #{idx + 1} Snapshot
-                      </span>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 hover:border-indigo-500/60 rounded-xl p-4 bg-zinc-900/60 cursor-pointer transition-colors aspect-video max-w-md text-center group/btn">
-                      <Upload className="w-6 h-6 text-zinc-500 group-hover/btn:text-indigo-400 mb-1 transition-colors" />
-                      <span className="text-[11px] font-semibold text-zinc-300 group-hover/btn:text-white">
-                        Upload Scene Snapshot
-                      </span>
-                      <span className="text-[10px] text-zinc-500">JPG, PNG, WebP</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleSingleImageFile(scene.id, f);
-                        }}
-                      />
-                    </label>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor={`segment-location-${scene.id}`} className="text-[11px] font-bold text-zinc-200">
-                    This segment's background or location (optional)
-                  </label>
-                  <input
-                    id={`segment-location-${scene.id}`}
-                    type="text"
-                    value={scene.initial_background || ''}
-                    onChange={(e) => handleUpdateScene(scene.id, { initial_background: e.target.value })}
-                    placeholder="Use the starting setting, or describe a new location here."
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl p-3 text-zinc-100 text-xs focus:outline-none transition-all"
-                  />
-                </div>
-
-                {/* Textbox for Action Guidance (Tagalog or English) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-zinc-200 flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5 text-amber-400" />
-                      Scene Action Guidance (Tagalog or English)
-                    </label>
-                    <span className="text-[10px] text-amber-300/80 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                      ✨ Tagalog Translated to English
-                    </span>
-                  </div>
-                  <textarea
-                    value={scene.raw_description}
-                    onChange={(e) => handleUpdateScene(scene.id, { raw_description: e.target.value })}
-                    rows={3}
-                    placeholder="Describe actions happening in this scene in Tagalog or English (e.g., 'May dalawang tao sa parke. Ang lalaki ay nakatayo sa tabi ng bisikleta.')"
-                    className="w-full bg-zinc-900 border border-zinc-700 text-zinc-100 p-3 rounded-lg text-xs focus:outline-none focus:border-indigo-500 leading-relaxed"
-                  />
-                  <p className="text-[10px] text-zinc-500">
-                    Tagalog input will be translated to English and formatted strictly according to non-speculative factual video annotation guidelines.
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </form>
-
-        {/* Modal Sticky Footer */}
-        <div className="p-4 border-t border-zinc-800 bg-zinc-950/90 flex items-center justify-between shrink-0">
-          <div className="text-[11px] text-zinc-400 hidden sm:block">
-            {scenes.length} Scene {scenes.length === 1 ? 'Entry' : 'Entries'} Ready
-          </div>
-          <div className="flex items-center gap-3 ml-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl font-medium transition-colors text-xs"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/25 transition-all flex items-center gap-2 text-xs"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              Stage 2: Run Generation
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+    <section role="dialog" aria-modal="true" aria-labelledby="upload-title" className="bg-zinc-900 border border-zinc-700 w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 sm:p-8">
+      <div className="flex justify-between items-center gap-4 mb-6"><h2 id="upload-title" className="text-2xl font-bold">Upload scene snapshots</h2><button aria-label="Close uploads" disabled={isPreparing} onClick={onClose}><X/></button></div>
+      {isPreparing ? <ProcessingScreen step={prepareStep}/> : <form onSubmit={handleSubmit} className="space-y-6">
+        <label className="block text-sm font-semibold">Background or location <span className="font-normal">(optional)</span><input autoFocus value={globalBackground} onChange={e => setGlobalBackground(e.target.value)} placeholder="Where does the video take place?" className="mt-2 w-full border border-zinc-700 p-3"/></label>
+        <label className="block border border-dashed border-zinc-600 p-6 text-sm font-semibold">Choose snapshots<input type="file" accept="image/*" multiple onChange={e => handleMassImageUpload(e.target.files)} className="block mt-4 max-w-full"/></label>
+        <p className="text-sm">{scenes.filter(scene => scene.start_image || scene.snapshot_image || scene.raw_description.trim()).length} scenes ready. We prepare and send up to 5 snapshots at a time, then automatically continue with the next batch.</p>
+        {uploadNotice && <p role="status" className="text-sm">{uploadNotice}</p>}
+        <details><summary className="cursor-pointer text-sm font-semibold">Review scenes & add optional guidance</summary><div className="space-y-4 mt-4">{scenes.map((scene,index) => <div key={scene.id} className="border border-zinc-700 p-4 space-y-3">
+          <div className="flex justify-between"><strong>Scene {index + 1}</strong><button type="button" onClick={() => handleRemoveScene(scene.id)} disabled={scenes.length <= 1}>Remove</button></div>
+          {scene.start_image && <img src={scene.start_image} alt={`Scene ${index + 1} snapshot`} className="h-24 object-contain"/>}
+          <label className="block text-sm">Snapshot<input className="block mt-2 max-w-full" type="file" accept="image/*" onChange={e => { if(e.target.files?.[0]) handleSingleImageFile(scene.id,e.target.files[0]); }}/></label>
+          <label className="block text-sm">Scene background<input className="block w-full border border-zinc-700 p-2 mt-2" value={scene.initial_background || ''} onChange={e => handleUpdateScene(scene.id,{initial_background:e.target.value})}/></label>
+          <label className="block text-sm">Guidance (Tagalog or English)<textarea className="block w-full border border-zinc-700 p-2 mt-2" rows={2} value={scene.raw_description} onChange={e => handleUpdateScene(scene.id,{raw_description:e.target.value})}/></label>
+        </div>)}<button type="button" onClick={handleAddScene}>+ Add scene</button></div></details>
+        <details><summary className="cursor-pointer text-sm font-semibold">Include audio for subtitles (optional)</summary><div className="mt-4 space-y-3"><SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange}/><input aria-label="Audio for subtitles" type="file" accept="audio/*" onChange={e => {if(e.target.files?.[0])handleAudioUpload(e.target.files[0]);}}/>{audioFileName && <p>{audioFileName}</p>}</div></details>
+        <div className="flex justify-end gap-4 border-t border-zinc-700 pt-5"><button type="button" onClick={onClose}>Cancel</button><button className="aces-primary" type="submit" disabled={!scenes.length || scenes.some(scene => !scene.start_image && !scene.snapshot_image && !scene.raw_description.trim())}>Generate descriptions</button></div>
+      </form>}
+    </section>
+  </div>;
 };

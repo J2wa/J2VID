@@ -82,9 +82,9 @@ export function SessionShell({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) return <main className="min-h-screen bg-zinc-950 text-zinc-200 grid place-items-center"><p role="status">Checking your session…</p></main>;
-  if (!user) return <main className="min-h-screen bg-[#09090b] text-zinc-100 grid place-items-center p-6">
+  if (!user) return <main className="min-h-screen bg-[#E4E2DD] text-zinc-100 grid place-items-center p-6">
     <div className="w-full max-w-md">
-      <div className="flex items-center gap-3 mb-8"><Video className="text-blue-400" size={32}/><span className="text-2xl font-bold">J2 Clips</span></div>
+      <div className="flex items-center gap-3 mb-8"><Video className="text-blue-400" size={32}/><span className="text-2xl font-bold">ACES Video</span></div>
       <form onSubmit={login} className="border border-zinc-800 bg-zinc-900/70 rounded-3xl p-6 sm:p-8 space-y-5">
         <LockKeyhole className="text-blue-400" size={28}/>
         <div><h1 className="text-2xl font-semibold">Sign in to your workspace</h1><p className="text-zinc-400 mt-2">Choose any username and enter your access password.</p></div>
@@ -97,7 +97,7 @@ export function SessionShell({ children }: { children: React.ReactNode }) {
     </div>
   </main>;
 
-  return <div className="min-h-screen bg-[#09090b] text-zinc-100">
+  return <div className="min-h-screen bg-[#E4E2DD] text-zinc-100">
     <div className="border-b border-zinc-800 bg-zinc-900 px-4 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap text-sm">
         <div className="flex items-center gap-2 min-w-0"><span className="font-semibold break-all">{user.username}</span><span className="rounded-full border border-zinc-700 px-2 py-0.5 text-zinc-400">{user.role === 'admin' ? 'Admin' : 'User'}</span></div>
@@ -127,3 +127,4 @@ export function SessionShell({ children }: { children: React.ReactNode }) {
     </main>}
   </div>;
 }
+

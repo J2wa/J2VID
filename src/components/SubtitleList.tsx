@@ -1,3 +1,4 @@
+import { ProcessingScreen } from './ProcessingScreen';
 import { transcribeAudioFile } from '../utils/audioUpload';
 import { SubtitleProviderSelector } from './SubtitleProviderSelector';
 import React, { useState, useEffect } from 'react';
@@ -108,6 +109,8 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
       default: return <Volume2 className="w-3 h-3 text-zinc-400" />;
     }
   };
+
+  if (isTranscribing) return <ProcessingScreen step={transcribeNotice || 'Generating subtitles'} />;
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
@@ -286,3 +289,4 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
     </div>
   );
 };
+

@@ -227,6 +227,10 @@ apiRouter.post(["/annotate-video", "/api/annotate-video"], async (req, res) => {
       scenesInput
     } = req.body;
 
+    if (Array.isArray(scenesInput) && scenesInput.length > 5) {
+      return res.status(400).json({ error: 'Please send at most 5 scene snapshots per request.' });
+    }
+
     const geminiKey = getGeminiApiKey();
     const openRouterKey = getOpenRouterApiKey();
 
@@ -288,7 +292,7 @@ Produce strictly structured JSON conforming to the following format:
     let scenesText = formatBackgroundContext(initialBackground);
 
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
-      scenesText += `Sequence of scenes to analyze:\n`;
+      scenesText += `Preserve the supplied scene_id values exactly; do not renumber them. Return one description for every supplied scene. Sequence of scenes to analyze:\n`;
       scenesInput.forEach((sc: any, idx: number) => {
         const scId = sc.scene_id || idx + 1;
         scenesText += `\nScene #${scId}:\n`;
@@ -431,7 +435,7 @@ Produce strictly structured JSON conforming to the following format:
 
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
       parts.push({
-        text: `You are analyzing a sequence of scene snapshot images and user action guidance notes. Apply the shared scene guidelines. Write natural English descriptions, using only supported observations and supplied action context.`
+        text: `Preserve the supplied scene_id values exactly; do not renumber them. Return one description for every supplied scene. You are analyzing a sequence of scene snapshot images and user action guidance notes. Apply the shared scene guidelines. Write natural English descriptions, using only supported observations and supplied action context.`
       });
 
       scenesInput.forEach((sc: any, idx: number) => {
@@ -875,3 +879,4 @@ if (!process.env.VERCEL) {
 
 export default app;
 export { app };
+

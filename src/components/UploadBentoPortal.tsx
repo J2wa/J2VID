@@ -15,7 +15,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-4">
       {/* Primary Hero Banner Card */}
-      <div className="bg-[#18181b] border border-[#27272a] rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-8">
+      <div className="bg-[#F3F1EC] border border-[#B9B6AF] rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden group text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-8">
         {/* Ambient Glow */}
         <div className="absolute -top-24 -right-24 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -94,7 +94,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
 
       {/* 3-Stage Protocol Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-5 shadow-lg space-y-2 relative overflow-hidden">
+        <div className="bg-[#F3F1EC] border border-[#B9B6AF] rounded-2xl p-5 shadow-lg space-y-2 relative overflow-hidden">
           <div className="flex items-center gap-2">
             <span className="p-2 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
               <ImageIcon className="w-4 h-4" />
@@ -109,7 +109,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
           </p>
         </div>
 
-        <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-5 shadow-lg space-y-2 relative overflow-hidden">
+        <div className="bg-[#F3F1EC] border border-[#B9B6AF] rounded-2xl p-5 shadow-lg space-y-2 relative overflow-hidden">
           <div className="flex items-center gap-2">
             <span className="p-2 bg-amber-600/10 border border-amber-500/20 text-amber-400 rounded-xl">
               <Sparkles className="w-4 h-4" />
@@ -124,7 +124,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
           </p>
         </div>
 
-        <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-5 shadow-lg space-y-2 relative overflow-hidden">
+        <div className="bg-[#F3F1EC] border border-[#B9B6AF] rounded-2xl p-5 shadow-lg space-y-2 relative overflow-hidden">
           <div className="flex items-center gap-2">
             <span className="p-2 bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
               <RefreshCw className="w-4 h-4" />
@@ -142,3 +142,4 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
     </div>
   );
 };
+
