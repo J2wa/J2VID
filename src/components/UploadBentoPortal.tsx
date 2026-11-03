@@ -25,7 +25,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
             3-Stage Protocol: Snapshots • Generation • Revision
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 tracking-tight">
             Multimodal Visual Scene Annotator
           </h2>
 
@@ -103,7 +103,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
               STAGE 1
             </span>
           </div>
-          <h4 className="text-xs font-bold text-white">Enter Snapshots & Guidance</h4>
+          <h4 className="text-xs font-bold text-zinc-100">Enter Snapshots & Guidance</h4>
           <p className="text-[11px] text-zinc-400 leading-relaxed">
             Upload starting and ending frame snapshots for each scene. Add textbox guidance describing actions in Tagalog or English.
           </p>
@@ -118,7 +118,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
               STAGE 2
             </span>
           </div>
-          <h4 className="text-xs font-bold text-white">AI Multimodal Generation</h4>
+          <h4 className="text-xs font-bold text-zinc-100">AI Multimodal Generation</h4>
           <p className="text-[11px] text-zinc-400 leading-relaxed">
             Multimodal pipeline translates Tagalog drafts and writes dense factual visual descriptions based strictly on image evidence.
           </p>
@@ -133,7 +133,7 @@ export const UploadBentoPortal: React.FC<UploadBentoPortalProps> = ({
               STAGE 3
             </span>
           </div>
-          <h4 className="text-xs font-bold text-white">Interactive Revision</h4>
+          <h4 className="text-xs font-bold text-zinc-100">Interactive Revision</h4>
           <p className="text-[11px] text-zinc-400 leading-relaxed">
             Review generated descriptions and request targeted AI revisions or manual edits whenever needed.
           </p>

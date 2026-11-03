@@ -84,7 +84,7 @@ export const JsonInspector: React.FC<JsonInspectorProps> = ({ annotationResult }
 
           <button
             onClick={handleDownloadSrt}
-            className="flex items-center gap-1.5 text-xs bg-emerald-600/80 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-emerald-500/20"
+            className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-emerald-500/20"
           >
             <FileText className="w-3.5 h-3.5" />
             .SRT
@@ -92,7 +92,7 @@ export const JsonInspector: React.FC<JsonInspectorProps> = ({ annotationResult }
 
           <button
             onClick={handleDownloadVtt}
-            className="flex items-center gap-1.5 text-xs bg-amber-600/80 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-amber-500/20"
+            className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-amber-500/20"
           >
             <FileText className="w-3.5 h-3.5" />
             .VTT
@@ -109,3 +109,4 @@ export const JsonInspector: React.FC<JsonInspectorProps> = ({ annotationResult }
     </div>
   );
 };
+
