@@ -102,8 +102,9 @@ export function SessionShell({ children }: { children: React.ReactNode }) {
 
   return <div className="min-h-screen bg-zinc-950 text-zinc-100">
     <div className="border-b border-zinc-800 bg-zinc-900 px-4 py-3">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap text-sm">
-        <div className="flex items-center gap-2 min-w-0"><span className="font-semibold break-all">{user.username}</span><span className="rounded-full border border-zinc-700 px-2 py-0.5 text-zinc-400">{user.role === 'admin' ? 'Admin' : 'User'}</span></div>
+      <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
+        <div className="aces-brand" aria-label="ACES Video">aces<span> video</span></div>
+        <div className="flex items-center gap-2 min-w-0 ml-auto"><span className="font-semibold break-all">{user.username}</span><span className="rounded-full border border-zinc-700 px-2 py-0.5 text-zinc-400">{user.role === 'admin' ? 'Admin' : 'User'}</span></div>
         <div className="flex items-center gap-3 flex-wrap">
           <button onClick={()=>setShowDashboard(!showDashboard)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600/15 text-blue-300 px-3 py-2 hover:bg-blue-600/25"><Users size={16}/> {showDashboard ? 'Back to workspace' : `Live users${dashboard && !dashboardError ? ` · ${dashboard.online}` : ''}`}</button>
           <ThemeToggle />

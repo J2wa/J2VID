@@ -48,8 +48,9 @@ export const Header: React.FC<HeaderProps> = ({
     downloadFile(vtt, 'subtitles.vtt', 'text/vtt');
   };
 
+  if (!hasVideo) return null;
   return <header className="aces-header">
-    <button className="aces-brand" onClick={onResetVideo} disabled={isAnalyzing} aria-label="ACES Video home">aces<span> video</span></button>
+
     {hasVideo && <nav className="flex flex-wrap gap-3 items-center" aria-label="Workspace">
       {hasVideo && <button className="aces-nav-button" disabled={isAnalyzing} onClick={onResetVideo}>Home</button>}
       {annotationResult && !isAnalyzing && <details className="relative"><summary className="aces-nav-button cursor-pointer">Export</summary><div className="aces-export">

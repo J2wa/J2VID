@@ -1,3 +1,4 @@
+import { SceneDescriptionDialog } from './components/SceneDescriptionDialog';
 import { generateSceneBatches, type SceneBatchProgress } from './utils/sceneBatches';
 import { useWorkspaceUI } from './components/WorkspaceUI';
 import { ProcessingScreen } from './components/ProcessingScreen';
@@ -24,6 +25,7 @@ import { formatSecondsToTimestamp, parseTimestampToSeconds } from './utils/timeU
 import { MapPin, Clock, Sparkles, Edit3, Globe, Layers, AlertTriangle, Zap, ArrowRightLeft, ShieldCheck } from 'lucide-react';
 
 export default function App() {
+  const [previewScene, setPreviewScene] = useState<SceneAnnotation | null>(null);
   const [mode, setMode] = useState<'home' | 'scenes' | 'subtitles'>('home');
   const [processingStep, setProcessingStep] = useState('Preparing your upload');
   const [batchProgress, setBatchProgress] = useState<SceneBatchProgress | null>(null);
@@ -110,6 +112,7 @@ export default function App() {
   }, []);
   // Reset handler
   const handleReset = () => {
+    setPreviewScene(null);
     setMode('home');
     setConfiguredScenes([]);
     setApiError(null);
@@ -127,6 +130,8 @@ export default function App() {
   ) => {
     if (!scenesInput || scenesInput.length === 0) return;
 
+    setPreviewScene(null);
+    setAnnotationResult(null);
     setConfiguredScenes(scenesInput);
     setBatchProgress(null);
     setGlobalBackground(bgContext || '');
@@ -147,7 +152,10 @@ export default function App() {
       const result = await generateSceneBatches(scenesInput, {
         initialBackground: bgContext, durationSeconds: totalSec,
         subtitleProvider, model: selectedModel, autoFallback
-      }, setProcessingStep, fetch, setBatchProgress);
+      }, setProcessingStep, fetch, setBatchProgress, partial => {
+        if (audioResult) partial.subtitles = audioResult.subtitles;
+        setAnnotationResult(partial);
+      });
       if (audioResult) result.subtitles = audioResult.subtitles;
       setAnnotationResult(result);
       setActiveSceneIndex(0);
@@ -316,7 +324,7 @@ export default function App() {
         onResetVideo={handleReset} hasVideo={mode !== 'home'} selectedModel={selectedModel}
         onOpenModelSelector={() => setIsModelModalOpen(true)} />
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
-        {isAnalyzing ? <ProcessingScreen step={processingStep} scenes={configuredScenes} progress={batchProgress} /> : <>
+        {isAnalyzing ? <ProcessingScreen step={processingStep} scenes={configuredScenes} progress={batchProgress} readyScenes={annotationResult?.scenes} onOpenScene={setPreviewScene} /> : <>
           {apiError && <div role="alert" className="border border-red-700 p-4">{apiError}</div>}
           {mode === 'home' ? <section className="aces-start">
             <div className="aces-home-icon"><Layers size={28} aria-hidden="true"/></div>
@@ -343,6 +351,8 @@ export default function App() {
         </>}
       </main>
       <footer className="aces-footer"><a href="https://acesintelligence.xyz">ACES INTELLIGENCE</a><span>Video annotation workspace</span></footer>
+
+      {previewScene && <SceneDescriptionDialog scene={previewScene} isProcessing={isAnalyzing} onClose={() => setPreviewScene(null)} />}
 
       {/* Pop-up Event & Scene Configurator Modal */}
       <EventSetupModal

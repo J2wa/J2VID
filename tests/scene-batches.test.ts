@@ -42,3 +42,37 @@ test('preview progress only marks validated batches ready, retaining failed scen
    { completed: 5, activeStart: 5, activeEnd: 6, total: 6 }
  ]);
 });
+
+test('completed descriptions are published before the next batch resolves and survive a later failure', async () => {
+  const published: any[] = [];
+  let calls = 0;
+  let release!: () => void;
+  let entered!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const secondStarted = new Promise<void>(resolve => { entered = resolve; });
+  const generation = generateSceneBatches(inputs(11), {durationSeconds:165}, () => {}, async (_url, init) => {
+    calls++;
+    if(calls === 2) { entered(); await pending; return Response.json({error:'Rate limit'}, {status:429}); }
+    const {scenesInput} = JSON.parse(String(init?.body));
+    return Response.json({suitability:{status:'suitable'}, scenes:scenesInput.map((s:any)=>({scene_id:s.scene_id,narrative_description:`Description ${s.scene_id}`}))});
+  }, undefined, result => published.push(result));
+  await secondStarted;
+  assert.equal(published.length, 1);
+  assert.deepEqual(published[0].scenes.map((s:any)=>s.scene_id), [1,2,3,4,5]);
+  assert.equal(published[0].scenes[0].narrative_description, 'Description 1');
+  assert.equal(published[0].scenes[0].start_image, 'image-0');
+  release();
+  await assert.rejects(generation, /Batch 2 of 3 failed/);
+  assert.equal(calls, 2);
+  assert.equal(published[0].scenes.length, 5);
+});
+
+test('batch snapshots are cumulative and earlier snapshots stay unchanged', async () => {
+  const published: any[] = [];
+  const result = await generateSceneBatches(inputs(6), {}, () => {}, async (_url, init) => {
+    const {scenesInput} = JSON.parse(String(init?.body));
+    return Response.json({suitability:{status:'suitable'},scenes:scenesInput.map((s:any)=>({...s,narrative_description:'Ready'}))});
+  }, undefined, result => published.push(result));
+  assert.deepEqual(published.map(p=>p.scenes.length), [5,6]);
+  assert.deepEqual(published[1].scenes, result.scenes);
+});
