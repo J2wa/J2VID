@@ -1,8 +1,11 @@
 import type { SceneInput, VideoAnnotationResult } from '../types';
 
+export interface SceneBatchProgress { completed: number; activeStart: number; activeEnd: number; total: number; }
+
 export async function generateSceneBatches(
   scenes: SceneInput[], options: Record<string, unknown>, onProgress: (step: string) => void,
-  request: typeof fetch = fetch
+  request: typeof fetch = fetch,
+  onBatchProgress?: (progress: SceneBatchProgress) => void
 ): Promise<VideoAnnotationResult> {
   if (!scenes.length) throw new Error('Add at least one snapshot.');
   const results: VideoAnnotationResult[] = [];
@@ -10,6 +13,7 @@ export async function generateSceneBatches(
     const batch = scenes.slice(offset, offset + 5);
     const number = Math.floor(offset / 5) + 1;
     const label = `Batch ${number} of ${Math.ceil(scenes.length / 5)}`;
+    onBatchProgress?.({ completed: offset, activeStart: offset, activeEnd: offset + batch.length, total: scenes.length });
     onProgress(`${label} · Generating descriptions for snapshots ${offset + 1}–${offset + batch.length} of ${scenes.length}`);
     const response = await request('/api/annotate-video', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
@@ -29,6 +33,7 @@ export async function generateSceneBatches(
       initial_background: input.initial_background?.trim() || options.initialBackground
     }));
     results.push(data);
+    onBatchProgress?.({ completed: offset + batch.length, activeStart: offset + batch.length, activeEnd: offset + batch.length, total: scenes.length });
   }
   onProgress('Finishing your scene descriptions');
   const discarded = results.find(result => result.suitability.status === 'discarded');
@@ -36,3 +41,4 @@ export async function generateSceneBatches(
     scenes: results.flatMap(result => result.scenes), subtitles: [],
     video_duration: new Date(Number(options.durationSeconds || 0) * 1000).toISOString().slice(11, 23) };
 }
+

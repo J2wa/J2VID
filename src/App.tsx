@@ -1,4 +1,4 @@
-import { generateSceneBatches } from './utils/sceneBatches';
+import { generateSceneBatches, type SceneBatchProgress } from './utils/sceneBatches';
 import { ProcessingScreen } from './components/ProcessingScreen';
 import { transcribeAudioFile, audioTimestamp } from './utils/audioUpload';
 import { SubtitleProvider } from './types';
@@ -25,6 +25,7 @@ import { MapPin, Clock, Sparkles, Edit3, Globe, Layers, AlertTriangle, Zap, Arro
 export default function App() {
   const [mode, setMode] = useState<'home' | 'scenes' | 'subtitles'>('home');
   const [processingStep, setProcessingStep] = useState('Preparing your upload');
+  const [batchProgress, setBatchProgress] = useState<SceneBatchProgress | null>(null);
   // Active annotation result
   const [annotationResult, setAnnotationResult] = useState<VideoAnnotationResult | null>(null);
   const [hasStartedGeneration, setHasStartedGeneration] = useState<boolean>(false);
@@ -126,6 +127,7 @@ export default function App() {
     if (!scenesInput || scenesInput.length === 0) return;
 
     setConfiguredScenes(scenesInput);
+    setBatchProgress(null);
     setGlobalBackground(bgContext || '');
     setIsAnalyzing(true);
     setHasStartedGeneration(true);
@@ -144,7 +146,7 @@ export default function App() {
       const result = await generateSceneBatches(scenesInput, {
         initialBackground: bgContext, durationSeconds: totalSec,
         subtitleProvider, model: selectedModel, autoFallback
-      }, setProcessingStep);
+      }, setProcessingStep, fetch, setBatchProgress);
       if (audioResult) result.subtitles = audioResult.subtitles;
       setAnnotationResult(result);
       setActiveSceneIndex(0);
@@ -313,19 +315,19 @@ export default function App() {
         onResetVideo={handleReset} hasVideo={mode !== 'home'} selectedModel={selectedModel}
         onOpenModelSelector={() => setIsModelModalOpen(true)} />
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
-        {isAnalyzing ? <ProcessingScreen step={processingStep} /> : <>
+        {isAnalyzing ? <ProcessingScreen step={processingStep} scenes={configuredScenes} progress={batchProgress} /> : <>
           {apiError && <div role="alert" className="border border-red-700 p-4">{apiError}</div>}
           {mode === 'home' ? <section className="aces-start">
-            <p className="aces-eyebrow">ACES INTELLIGENCE / VIDEO TOOLS</p>
-            <h1>Every scene.<br/><span>Clearly described.</span></h1>
-            <p>Turn your snapshots into scene descriptions or your audio into timed subtitles.</p>
+            <div className="aces-home-icon"><Layers size={28} aria-hidden="true"/></div>
+            <h1>Video Annotation</h1>
+            <p>Create scene descriptions from snapshots or generate subtitles from audio.</p>
             <div className="aces-actions">
-              <button className="aces-primary" onClick={() => { setMode('scenes'); setIsSetupModalOpen(true); }}>Generate scene descriptions <span aria-hidden="true">↗</span></button>
-              <button className="aces-secondary" onClick={() => setMode('subtitles')}>Generate subtitles <span aria-hidden="true">↗</span></button>
+              <button className="aces-primary" onClick={() => { setMode('scenes'); setIsSetupModalOpen(true); }}><Layers size={20} aria-hidden="true"/> Generate scene descriptions <span aria-hidden="true">↗</span></button>
+              <button className="aces-secondary" onClick={() => setMode('subtitles')}><Sparkles size={20} aria-hidden="true"/> Generate subtitles <span aria-hidden="true">↗</span></button>
             </div>
-            <p className="aces-note">More than 5 snapshots? We automatically process them in batches of up to 5, one batch at a time.</p>
+            
           </section> : mode === 'subtitles' ? subtitlePanel : <>
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="aces-section-heading">
               <div><h1 className="text-3xl font-bold">Scene descriptions</h1><p className="mt-2 text-sm">Snapshots are processed in batches of up to 5, one batch at a time.</p></div>
               <button className="aces-primary" onClick={() => setIsSetupModalOpen(true)}>{annotationResult ? 'Edit uploads' : 'Upload snapshots'}</button>
             </div>
@@ -339,7 +341,7 @@ export default function App() {
           </>}
         </>}
       </main>
-      <footer className="aces-footer"><a href="https://acesintelligence.xyz">ACES INTELLIGENCE ↗</a><span>ACES VIDEO / DESCRIBE. TRANSCRIBE.</span></footer>
+      <footer className="aces-footer"><a href="https://acesintelligence.xyz">ACES INTELLIGENCE ↗</a><span>Video annotation workspace</span></footer>
 
       {/* Pop-up Event & Scene Configurator Modal */}
       <EventSetupModal
@@ -376,4 +378,5 @@ export default function App() {
     </div>
   );
 }
+
 

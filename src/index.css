@@ -49,3 +49,53 @@
 .aces-export button:hover { background:#eff6ff; }
 @media(max-width:600px){.aces-header{padding:20px;align-items:flex-start;flex-direction:column}.aces-actions{flex-direction:column}.aces-start{padding:40px 0}}
 @media(prefers-reduced-motion:reduce){button{transition:none}.animate-spin{animation-duration:3s}}
+
+/* Centered workspace and tactile blue-and-white controls. */
+.aces-header { flex-direction:column; justify-content:center; gap:18px; background:linear-gradient(180deg,#fff,#f8fbff); }
+.aces-header nav { justify-content:center; }
+.aces-start { margin-inline:auto; text-align:center; }
+.aces-start > p { margin-inline:auto; }
+.aces-actions { justify-content:center; }
+.aces-section-heading { display:flex; flex-direction:column; align-items:center; text-align:center; gap:22px; padding:20px 0 12px; }
+.aces-footer { justify-content:center; text-align:center; }
+.aces-primary,.aces-secondary { justify-content:center; gap:12px; min-height:54px; border-radius:16px; padding:17px 24px; font-size:14px; letter-spacing:.01em; transition:transform .18s ease,box-shadow .18s ease,background .18s ease; }
+.aces-primary { background:linear-gradient(135deg,#3b82f6,#2563eb 55%,#1d4ed8); border-color:#2563eb; box-shadow:0 8px 20px #2563eb26,inset 0 1px 0 #ffffff40; }
+.aces-secondary { background:linear-gradient(180deg,#fff,#f5f9ff); border-color:#bfd5fa; box-shadow:0 4px 12px #1e40af0c,inset 0 1px 0 #fff; }
+.aces-primary:hover:not(:disabled),.aces-secondary:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 12px 24px #2563eb29; }
+.aces-primary:active:not(:disabled),.aces-secondary:active:not(:disabled) { transform:translateY(0); }
+.aces-nav-button { border-radius:12px; padding:10px 18px; box-shadow:0 2px 5px #1e40af08; }
+button.bg-blue-600,button.bg-indigo-600 { background-image:linear-gradient(135deg,#3b82f6,#2563eb 55%,#1d4ed8); box-shadow:0 4px 12px #2563eb20,inset 0 1px 0 #ffffff30; }
+button.bg-blue-600:hover:not(:disabled),button.bg-indigo-600:hover:not(:disabled) { background-image:linear-gradient(135deg,#2563eb,#1d4ed8); box-shadow:0 6px 16px #2563eb30; }
+.aces-loading { max-width:1000px; margin-inline:auto; padding:40px 0; gap:28px; }
+.aces-loading h2 { font-size:clamp(24px,4vw,36px); letter-spacing:-.035em; }
+.aces-processing-emblem { position:relative; display:grid; place-items:center; width:76px; height:76px; border-radius:24px; background:linear-gradient(135deg,#eff6ff,#dbeafe); border:1px solid #bfdbfe; box-shadow:0 8px 30px #2563eb12; }
+.aces-processing-emblem span { position:absolute; inset:-7px; border:1px dashed #93c5fd; border-radius:30px; }
+.aces-processing-status { display:flex; align-items:center; justify-content:center; gap:10px; color:#475569; font-size:14px; }
+.aces-processing-status svg { flex-shrink:0; }
+.aces-progress-summary { width:100%; max-width:520px; font-size:12px; color:#475569; }
+.aces-progress-summary > div { display:flex; justify-content:space-between; gap:16px; margin-bottom:10px; }
+.aces-progress-summary strong { color:#1d4ed8; }
+.aces-progress-summary progress { display:block; width:100%; height:8px; border:0; border-radius:999px; overflow:hidden; background:#dbeafe; accent-color:#2563eb; }
+.aces-progress-summary progress::-webkit-progress-bar { background:#dbeafe; }
+.aces-progress-summary progress::-webkit-progress-value { background:#2563eb; border-radius:999px; transition:width .3s; }
+.aces-progress-summary progress::-moz-progress-bar { background:#2563eb; }
+.aces-processing-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; width:100%; max-height:440px; overflow-y:auto; padding:8px; }
+.aces-scene-preview { min-width:0; margin:0; background:white; border:1px solid #dbe5f1; border-radius:16px; overflow:hidden; box-shadow:0 3px 12px #0f172a06; }
+.aces-scene-preview.is-processing { border-color:#3b82f6; box-shadow:0 0 0 3px #dbeafe,0 8px 20px #2563eb15; }
+.aces-scene-preview.is-complete { border-color:#93c5fd; }
+.aces-scene-image { position:relative; aspect-ratio:16/10; display:grid; place-items:center; background:#eff6ff; overflow:hidden; }
+.aces-scene-image img { width:100%; height:100%; object-fit:contain; }
+.aces-scene-number { position:absolute; top:10px; left:10px; background:#fff; color:#1d4ed8; padding:4px 8px; border-radius:8px; font-size:11px; font-weight:700; box-shadow:0 2px 6px #0f172a15; }
+.aces-scene-preview figcaption { display:flex; flex-direction:column; align-items:center; gap:5px; padding:13px 8px; font-size:13px; }
+.aces-scene-preview figcaption span { display:flex; align-items:center; gap:5px; font-size:11px; color:#475569; }
+.aces-scene-scan { position:absolute; inset:0; background:linear-gradient(180deg,transparent,#3b82f633,transparent); animation:scene-scan 2.8s ease-in-out infinite; }
+@keyframes scene-scan { 0%,100% { transform:translateY(-80%); } 50% { transform:translateY(80%); } }
+@media(max-width:600px) { .aces-header { align-items:center; }.aces-actions { align-items:stretch; }.aces-processing-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }.aces-loading { padding:28px 0; }.aces-export { right:50%;transform:translateX(50%); } }
+@media(prefers-reduced-motion:reduce) { .aces-primary,.aces-secondary { transition:none; }.aces-primary:hover:not(:disabled),.aces-secondary:hover:not(:disabled) { transform:none; }.aces-scene-scan { animation:none; }.aces-progress-summary progress::-webkit-progress-value { transition:none; } }
+.aces-panel-toolbar { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; }
+.aces-panel-toolbar > div { flex-wrap:wrap; justify-content:center; }
+.aces-upload-dialog input:not([type=file]),.aces-upload-dialog textarea { border-radius:12px; }
+input[type=file]::file-selector-button { border:1px solid #bfdbfe; border-radius:10px; background:#fff; color:#1d4ed8; font-weight:600; padding:10px 14px; margin-right:12px; cursor:pointer; }
+input[type=file]::file-selector-button:hover { background:#dbeafe; }
+.aces-start h1 { font-size:clamp(32px,5vw,48px); line-height:1.15; letter-spacing:-.035em; margin:24px 0 16px; }
+.aces-home-icon { display:grid; place-items:center; width:64px; height:64px; margin-inline:auto; border-radius:20px; background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; }

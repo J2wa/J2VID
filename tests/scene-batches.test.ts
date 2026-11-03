@@ -25,3 +25,20 @@ test('failed batch stops further requests',async()=>{
 test('incomplete or renumbered batch is rejected',async()=>{
  await assert.rejects(generateSceneBatches(inputs(6),{},()=>{},async()=>Response.json({suitability:{status:'suitable'},scenes:[]})),/incomplete/);
 });
+
+
+test('preview progress only marks validated batches ready, retaining failed scenes as active', async () => {
+ const states: unknown[] = [];
+ let calls = 0;
+ await assert.rejects(generateSceneBatches(inputs(6), {}, () => {}, async (_url, init) => {
+   calls++;
+   const { scenesInput } = JSON.parse(String(init?.body));
+   if (calls === 2) return Response.json({ suitability: { status: 'suitable' }, scenes: [] });
+   return Response.json({ suitability: { status: 'suitable' }, scenes: scenesInput.map((s: any) => ({ ...s, narrative_description: 'Walks.' })) });
+ }, state => states.push(state)), /incomplete/);
+ assert.deepEqual(states, [
+   { completed: 0, activeStart: 0, activeEnd: 5, total: 6 },
+   { completed: 5, activeStart: 5, activeEnd: 5, total: 6 },
+   { completed: 5, activeStart: 5, activeEnd: 6, total: 6 }
+ ]);
+});

@@ -1,8 +1,43 @@
-import { Loader2 } from 'lucide-react';
-export function ProcessingScreen({ step }: { step: string }) {
-  return <section className="aces-loading" role="status" aria-live="polite" aria-busy="true">
-    <Loader2 className="animate-spin" size={40} aria-hidden="true"/>
-    <p className="aces-eyebrow">ACES VIDEO</p><h2>Processing your upload</h2><p>{step}</p>
-    <small>Please keep this tab open.</small>
+import { Check, Film, Loader2, Sparkles } from 'lucide-react';
+import type { SceneInput } from '../types';
+import type { SceneBatchProgress } from '../utils/sceneBatches';
+
+interface ProcessingScreenProps {
+  step: string;
+  scenes?: SceneInput[];
+  progress?: SceneBatchProgress | null;
+}
+
+export function ProcessingScreen({ step, scenes = [], progress = null }: ProcessingScreenProps) {
+  const completed = progress?.completed ?? 0;
+  return <section className="aces-loading" aria-busy="true">
+    <div className="aces-processing-emblem"><Sparkles size={30} aria-hidden="true"/><span /></div>
+    <div className="space-y-3">
+      <p className="aces-eyebrow">{scenes.length ? 'YOUR SCENES, TAKING SHAPE' : 'ACES VIDEO'}</p>
+      <h2>{scenes.length ? 'Bringing every scene into focus' : 'Processing your upload'}</h2>
+      <p role="status" aria-live="polite" className="aces-processing-status"><Loader2 size={16} className="animate-spin" aria-hidden="true"/>{step}</p>
+    </div>
+    {scenes.length > 0 && <>
+      <div className="aces-progress-summary">
+        <div><span>Scene descriptions</span><strong>{completed} / {scenes.length} ready</strong></div>
+        <progress max={scenes.length} value={completed} aria-label="Completed scene descriptions" />
+      </div>
+      <div className="aces-processing-grid" aria-label="Scene processing previews">
+        {scenes.map((scene, index) => {
+          const done = index < completed;
+          const active = !!progress && index >= progress.activeStart && index < progress.activeEnd;
+          const image = scene.start_image || scene.snapshot_image;
+          return <figure key={scene.id} className={`aces-scene-preview ${active ? 'is-processing' : ''} ${done ? 'is-complete' : ''}`}>
+            <div className="aces-scene-image">
+              {image ? <img src={image} alt={`Snapshot for scene ${scene.scene_id}`} /> : <Film size={36} aria-hidden="true"/>}
+              {active && <div className="aces-scene-scan" aria-hidden="true"/>}
+              <span className="aces-scene-number">{String(scene.scene_id).padStart(2, '0')}</span>
+            </div>
+            <figcaption><strong>Scene {scene.scene_id}</strong><span>{done ? <Check size={14}/> : active ? <Loader2 size={14} className="animate-spin"/> : <Film size={14}/>} {done ? 'Ready' : active ? 'Processing' : 'Queued'}</span></figcaption>
+          </figure>;
+        })}
+      </div>
+    </>}
+    <small>{scenes.length ? 'Your snapshots stay visible while we work. ' : ''}Please keep this tab open.</small>
   </section>;
 }

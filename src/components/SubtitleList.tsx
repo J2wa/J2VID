@@ -115,7 +115,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+      <div className="aces-panel-toolbar border-b border-zinc-800 pb-5">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-amber-400" />
           <h2 className="text-base font-semibold text-zinc-100">Subtitle & Dialogue Timestamps</h2>
@@ -124,7 +124,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           {/* Type Filter Pill Selector */}
           <select
             value={selectedType}

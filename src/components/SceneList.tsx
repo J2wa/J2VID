@@ -57,7 +57,7 @@ export const SceneList: React.FC<SceneListProps> = ({
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
       {/* List Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+      <div className="aces-panel-toolbar border-b border-zinc-800 pb-5">
         <div className="flex items-center gap-2">
           <Film className="w-5 h-5 text-indigo-400" />
           <h2 className="text-base font-semibold text-zinc-100">Factual Visual Scene Descriptions</h2>
