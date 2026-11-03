@@ -1,5 +1,6 @@
+import { ThemeToggle, useWorkspaceUI } from './WorkspaceUI';
 import React, { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowLeft, LockKeyhole, LogOut, Users, Video } from 'lucide-react';
+import { Activity, ArrowLeft, LockKeyhole, LogOut, Users, Video, Settings2 } from 'lucide-react';
 
 type User = { id: string; username: string; role: 'user' | 'admin' };
 type SessionRow = { id: string; alias: string; isYou: boolean; online: boolean; lastSeen: number; aiRequests: number; activity: string; username?: string; role?: string; ip?: string };
@@ -19,6 +20,7 @@ async function access(action: string, body?: Record<string, unknown>) {
 const dateTime = (time: number) => new Date(time).toLocaleString();
 
 export function SessionShell({ children }: { children: React.ReactNode }) {
+  const { setIsModelModalOpen } = useWorkspaceUI();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -82,8 +84,9 @@ export function SessionShell({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) return <main className="min-h-screen bg-zinc-950 text-zinc-200 grid place-items-center"><p role="status">Checking your session…</p></main>;
-  if (!user) return <main className="min-h-screen bg-[#F4F8FF] text-zinc-100 grid place-items-center p-6">
+  if (!user) return <main className="min-h-screen bg-zinc-950 text-zinc-100 grid place-items-center p-6">
     <div className="w-full max-w-md">
+      <div className="flex justify-center mb-6"><ThemeToggle /></div>
       <div className="flex items-center gap-3 mb-8"><Video className="text-blue-400" size={32}/><span className="text-2xl font-bold">ACES Video</span></div>
       <form onSubmit={login} className="border border-zinc-800 bg-zinc-900/70 rounded-3xl p-6 sm:p-8 space-y-5">
         <LockKeyhole className="text-blue-400" size={28}/>
@@ -97,12 +100,14 @@ export function SessionShell({ children }: { children: React.ReactNode }) {
     </div>
   </main>;
 
-  return <div className="min-h-screen bg-[#F4F8FF] text-zinc-100">
+  return <div className="min-h-screen bg-zinc-950 text-zinc-100">
     <div className="border-b border-zinc-800 bg-zinc-900 px-4 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap text-sm">
         <div className="flex items-center gap-2 min-w-0"><span className="font-semibold break-all">{user.username}</span><span className="rounded-full border border-zinc-700 px-2 py-0.5 text-zinc-400">{user.role === 'admin' ? 'Admin' : 'User'}</span></div>
         <div className="flex items-center gap-3 flex-wrap">
-          <button onClick={()=>setShowDashboard(!showDashboard)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600/15 text-blue-300 px-3 py-2 hover:bg-blue-600/25">{showDashboard ? <ArrowLeft size={16}/> : <Users size={16}/>} {showDashboard ? 'Back to workspace' : `Live users${dashboard && !dashboardError ? ` · ${dashboard.online}` : ''}`}</button>
+          <button onClick={()=>setShowDashboard(!showDashboard)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600/15 text-blue-300 px-3 py-2 hover:bg-blue-600/25"><Users size={16}/> {showDashboard ? 'Back to workspace' : `Live users${dashboard && !dashboardError ? ` · ${dashboard.online}` : ''}`}</button>
+          <ThemeToggle />
+          <button type="button" className="aces-nav-button inline-flex gap-2" onClick={() => { setShowDashboard(false); setIsModelModalOpen(true); }}><Settings2 size={16} aria-hidden="true"/> AI settings</button>
           <button onClick={logout} disabled={busy} className="aces-nav-button inline-flex gap-2 items-center disabled:opacity-50"><LogOut size={16}/> Sign out</button>
         </div>
       </div>

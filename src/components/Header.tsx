@@ -49,15 +49,14 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return <header className="aces-header">
-    <button className="aces-brand" onClick={onResetVideo} disabled={isAnalyzing} aria-label="ACES Video home">aces<span> video</span><b>↗</b></button>
-    <nav className="flex flex-wrap gap-3 items-center" aria-label="Workspace">
+    <button className="aces-brand" onClick={onResetVideo} disabled={isAnalyzing} aria-label="ACES Video home">aces<span> video</span></button>
+    {hasVideo && <nav className="flex flex-wrap gap-3 items-center" aria-label="Workspace">
       {hasVideo && <button className="aces-nav-button" disabled={isAnalyzing} onClick={onResetVideo}>Home</button>}
-      <button className="aces-nav-button" disabled={isAnalyzing} onClick={onOpenModelSelector}>AI settings</button>
-      {annotationResult && !isAnalyzing && <details className="relative"><summary className="aces-nav-button cursor-pointer">Export ↓</summary><div className="aces-export">
+      {annotationResult && !isAnalyzing && <details className="relative"><summary className="aces-nav-button cursor-pointer">Export</summary><div className="aces-export">
         <button onClick={handleDownloadJson}>Download JSON</button>
         {!!annotationResult.subtitles?.length && <><button onClick={handleDownloadSrt}>Download SRT</button><button onClick={handleDownloadVtt}>Download VTT</button></>}
       </div></details>}
-    </nav>
+    </nav>}
   </header>;
 };
 

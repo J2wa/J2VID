@@ -1,4 +1,5 @@
 import { generateSceneBatches, type SceneBatchProgress } from './utils/sceneBatches';
+import { useWorkspaceUI } from './components/WorkspaceUI';
 import { ProcessingScreen } from './components/ProcessingScreen';
 import { transcribeAudioFile, audioTimestamp } from './utils/audioUpload';
 import { SubtitleProvider } from './types';
@@ -57,7 +58,7 @@ export default function App() {
     const saved = localStorage.getItem('j2_auto_fallback');
     return saved !== null ? saved === 'true' : true;
   });
-  const [isModelModalOpen, setIsModelModalOpen] = useState<boolean>(false);
+  const { isModelModalOpen, setIsModelModalOpen } = useWorkspaceUI();
   const [quotaExhaustedAlert, setQuotaExhaustedAlert] = useState<{ model: string; suggestedFallback: string } | null>(null);
   const [fallbackSuccessNotice, setFallbackSuccessNotice] = useState<{ originalModel: string; usedModel: string } | null>(null);
 
@@ -322,8 +323,8 @@ export default function App() {
             <h1>Video Annotation</h1>
             <p>Create scene descriptions from snapshots or generate subtitles from audio.</p>
             <div className="aces-actions">
-              <button className="aces-primary" onClick={() => { setMode('scenes'); setIsSetupModalOpen(true); }}><Layers size={20} aria-hidden="true"/> Generate scene descriptions <span aria-hidden="true">↗</span></button>
-              <button className="aces-secondary" onClick={() => setMode('subtitles')}><Sparkles size={20} aria-hidden="true"/> Generate subtitles <span aria-hidden="true">↗</span></button>
+              <button className="aces-primary" onClick={() => { setMode('scenes'); setIsSetupModalOpen(true); }}><Layers size={20} aria-hidden="true"/> Generate scene descriptions</button>
+              <button className="aces-secondary" onClick={() => setMode('subtitles')}><Sparkles size={20} aria-hidden="true"/> Generate subtitles</button>
             </div>
             
           </section> : mode === 'subtitles' ? subtitlePanel : <>
@@ -341,7 +342,7 @@ export default function App() {
           </>}
         </>}
       </main>
-      <footer className="aces-footer"><a href="https://acesintelligence.xyz">ACES INTELLIGENCE ↗</a><span>Video annotation workspace</span></footer>
+      <footer className="aces-footer"><a href="https://acesintelligence.xyz">ACES INTELLIGENCE</a><span>Video annotation workspace</span></footer>
 
       {/* Pop-up Event & Scene Configurator Modal */}
       <EventSetupModal
