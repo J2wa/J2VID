@@ -166,7 +166,7 @@ export const SceneList: React.FC<SceneListProps> = ({
                     </span>
                     <button
                       onClick={() => handleCopyNarrative(scene.narrative_description, scene.scene_id)}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700/80 transition-all shrink-0"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-zinc-300 hover:text-blue-700 bg-zinc-900 hover:bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700/80 transition-all shrink-0"
                       title="Copy Visual Narrative"
                     >
                       {copiedMap[scene.scene_id] ? (
@@ -209,7 +209,7 @@ export const SceneList: React.FC<SceneListProps> = ({
                     <button
                       onClick={() => handleApplyRevision(scene.scene_id)}
                       disabled={isRevising || !revisionInputs[scene.scene_id]?.trim()}
-                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shrink-0"
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shrink-0"
                     >
                       {isRevising ? (
                         <>
@@ -237,3 +237,4 @@ export const SceneList: React.FC<SceneListProps> = ({
     </div>
   );
 };
+

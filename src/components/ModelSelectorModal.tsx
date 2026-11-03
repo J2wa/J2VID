@@ -50,11 +50,11 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-[#121215] border border-[#B9B6AF] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[88vh]"
+        className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[88vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 border-b border-[#B9B6AF] flex items-center justify-between bg-[#F3F1EC]/50 shrink-0">
+        <div className="p-5 border-b border-[#CBD5E1] flex items-center justify-between bg-[#FFFFFF]/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl">
               <Cpu className="w-5 h-5" />
@@ -77,8 +77,8 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
         </div>
 
         {/* Filter Tabs & Key Status Bar */}
-        <div className="px-5 pt-3 pb-2 border-b border-[#B9B6AF] bg-[#141417] flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1 bg-[#1c1c21] p-1 rounded-xl border border-zinc-800 text-xs">
+        <div className="px-5 pt-3 pb-2 border-b border-[#CBD5E1] bg-[#F8FAFC] flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-1 bg-[#EFF6FF] p-1 rounded-xl border border-zinc-800 text-xs">
             <button
               onClick={() => setProviderFilter('all')}
               className={`px-3 py-1 rounded-lg font-medium transition-all ${
@@ -126,7 +126,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Key Setup Instructions Accordion */}
           {showKeyGuide && (
-            <div className="bg-[#18181f] border border-amber-500/30 rounded-2xl p-4 space-y-3 text-xs text-zinc-300 animate-fadeIn">
+            <div className="bg-[#F8FAFC] border border-amber-500/30 rounded-2xl p-4 space-y-3 text-xs text-zinc-300 animate-fadeIn">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-amber-300 flex items-center gap-2">
                   <Key className="w-4 h-4" />
@@ -193,7 +193,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                   className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
                     isSelected
                       ? 'bg-blue-600/10 border-blue-500/50 shadow-md shadow-blue-500/5 ring-1 ring-blue-500/30'
-                      : 'bg-[#F3F1EC]/60 border-[#B9B6AF] hover:bg-[#1f1f23] hover:border-zinc-700'
+                      : 'bg-[#FFFFFF]/60 border-[#CBD5E1] hover:bg-[#EFF6FF] hover:border-zinc-700'
                   }`}
                 >
                   <div className="space-y-1.5 flex-1 min-w-0">
@@ -233,7 +233,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
           </div>
 
           {/* Auto-Fallback Setting */}
-          <div className="bg-[#F3F1EC]/80 border border-[#B9B6AF] rounded-2xl p-3.5 flex items-center justify-between gap-3">
+          <div className="bg-[#FFFFFF]/80 border border-[#CBD5E1] rounded-2xl p-3.5 flex items-center justify-between gap-3">
             <div className="flex items-start gap-2.5">
               <ArrowRightLeft className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
@@ -261,7 +261,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#B9B6AF] bg-[#F3F1EC]/50 flex items-center justify-between shrink-0">
+        <div className="p-4 border-t border-[#CBD5E1] bg-[#FFFFFF]/50 flex items-center justify-between shrink-0">
           <div className="text-xs text-zinc-400 truncate max-w-[280px]">
             Active: <span className="font-semibold text-zinc-200">{currentModelObj.name}</span>
           </div>
@@ -276,4 +276,5 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
     </div>
   );
 };
+
 

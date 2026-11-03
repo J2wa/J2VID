@@ -136,6 +136,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
           <button
             onClick={togglePlay}
+            aria-label={isPlaying ? 'Pause video' : 'Play video'}
             className="p-4 bg-indigo-600/90 hover:bg-indigo-500 text-white rounded-full shadow-2xl backdrop-blur-md transform transition scale-90 group-hover:scale-100 pointer-events-auto"
           >
             {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 translate-x-0.5" />}
@@ -216,6 +217,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
                 <button
                   key={rate}
+                  aria-pressed={playbackRate === rate}
+                  aria-label={`Playback speed ${rate}x`}
                   onClick={() => handleRateChange(rate)}
                   className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
                     playbackRate === rate
@@ -263,3 +266,4 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     </div>
   );
 };
+

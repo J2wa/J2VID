@@ -168,7 +168,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
 
           <button
             onClick={onAddSubtitle}
-            className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-amber-500/20 shrink-0"
+            className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-amber-500/20 shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Subtitle
@@ -185,7 +185,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
       {transcribeNotice && (
         <div role="status" aria-live="polite" className={`p-3 rounded-xl text-xs flex items-center justify-between gap-3 ${
           isTranscribing 
-            ? 'bg-indigo-950/70 border border-indigo-500/50 text-indigo-200' 
+            ? 'bg-indigo-950/70 border border-indigo-500/50 text-blue-700' 
             : transcribeNotice.startsWith('Error')
             ? 'bg-rose-950/70 border border-rose-500/50 text-rose-200'
             : 'bg-emerald-950/70 border border-emerald-500/50 text-emerald-200'
@@ -289,4 +289,5 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
     </div>
   );
 };
+
 

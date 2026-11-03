@@ -148,7 +148,7 @@ export const SnapshotViewer: React.FC<SnapshotViewerProps> = ({
             )}
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1 text-[10px] font-semibold text-zinc-300 hover:text-white bg-zinc-950 hover:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700/80 transition-all shrink-0"
+              className="flex items-center gap-1 text-[10px] font-semibold text-zinc-300 hover:text-blue-700 bg-zinc-950 hover:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700/80 transition-all shrink-0"
               title="Copy visual narrative"
             >
               {copied ? (
@@ -178,3 +178,4 @@ export const SnapshotViewer: React.FC<SnapshotViewerProps> = ({
     </div>
   );
 };
+
