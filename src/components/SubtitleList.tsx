@@ -1,3 +1,4 @@
+import { PlayheadDurations } from './PlayheadDurations';
 import { ProcessingScreen } from './ProcessingScreen';
 import { audioTimestamp } from '../utils/audioUpload';
 import { orderAudioFiles, transcribeAudioFiles } from '../utils/audioFiles';
@@ -262,6 +263,8 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
                         <span className="text-amber-400 font-semibold">{sub.end_time}</span>
                       </div>
                     </div>
+
+                    <PlayheadDurations subtitleId={sub.subtitle_id} start={sub.start_time} end={sub.end_time} />
 
                     <p className={`text-xs font-medium ${sub.type === 'Spoken words' ? 'text-zinc-100 font-sans' : 'text-amber-200/90 italic font-mono'}`}>
                       {sub.text}
