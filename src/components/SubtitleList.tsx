@@ -1,5 +1,6 @@
 import { ProcessingScreen } from './ProcessingScreen';
-import { transcribeAudioFile } from '../utils/audioUpload';
+import { audioTimestamp } from '../utils/audioUpload';
+import { orderAudioFiles, transcribeAudioFiles } from '../utils/audioFiles';
 import { SubtitleProviderSelector } from './SubtitleProviderSelector';
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Play, Edit3, Plus, Trash2, Search, Volume2, Music, Mic, Radio, Bell, Upload, Loader2, CheckCircle2 } from 'lucide-react';
@@ -39,31 +40,32 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   const [transcribeNotice, setTranscribeNotice] = useState<string | null>(null);
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
   const [uploadedAudioName, setUploadedAudioName] = useState<string | null>(null);
-  const [retryAudioFile, setRetryAudioFile] = useState<File | null>(null);
+  const [retryAudioFiles, setRetryAudioFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   useEffect(() => () => {
     if (uploadedAudioUrl) URL.revokeObjectURL(uploadedAudioUrl);
   }, [uploadedAudioUrl]);
 
-  const handleMp3FileUpload = async (file: File) => {
+  const handleAudioFilesUpload = async (files: File[]) => {
     try {
       setIsTranscribing(true);
-      setRetryAudioFile(null);
-      setTranscribeNotice(`Uploading ${file.name} and generating timed subtitles with ${subtitleProvider === 'deepgram' ? 'Deepgram' : 'Gemini'}...`);
+      setRetryAudioFiles([]);
+      setTranscribeNotice(`Uploading ${files.length} file(s) and generating timed subtitles with ${subtitleProvider === 'deepgram' ? 'Deepgram' : 'Gemini'}...`);
 
-      const audioObjectUrl = URL.createObjectURL(file);
+      const audioObjectUrl = files.length === 1 ? URL.createObjectURL(files[0]) : null;
       setUploadedAudioUrl(audioObjectUrl);
-      setUploadedAudioName(file.name);
+      setUploadedAudioName(files.map(file => file.name).join(', '));
 
-      const data = await transcribeAudioFile(file, {
+      const data = await transcribeAudioFiles(files, {
         subtitleProvider, autoFallback, onProgress: setTranscribeNotice
       });
       onSubtitlesGenerated?.(data.subtitles);
       setTranscribeNotice(`Generated ${data.subtitles.length} subtitles from ${data.parts} audio part(s). Review the wording and timing.` +
         (data.warnings.length ? ' ' + data.warnings.join(' ') : ''));
     } catch (err: any) {
-      setRetryAudioFile(file);
-      console.error('Error reading MP3 file:', err);
+      setRetryAudioFiles(files);
+      console.error('Audio transcription failed:', err);
       setIsTranscribing(false);
       setTranscribeNotice(`Error: ${err.message || 'Failed to transcribe audio'}`);
     } finally {
@@ -153,15 +155,25 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
 
           <label className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-md shadow-indigo-600/20 shrink-0 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
-            <span>Upload MP3</span>
+            <span>Choose audio files</span>
             <input
               type="file"
+              multiple
               disabled={isTranscribing}
               accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/*"
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleMp3FileUpload(f);
+                const files = Array.from<File>(e.currentTarget.files || []);
+                e.target.value = '';
+                if (!files.length) return;
+                try {
+                  const ordered = orderAudioFiles(files);
+                  setSelectedFiles(ordered.map(item => item.file));
+                  setRetryAudioFiles([]);
+                  setTranscribeNotice(null);
+                } catch (error) {
+                  setTranscribeNotice(`Error: ${error instanceof Error ? error.message : 'Invalid filenames.'}`);
+                }
               }}
             />
           </label>
@@ -180,7 +192,12 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
         <SubtitleProviderSelector value={subtitleProvider} onChange={onSubtitleProviderChange} disabled={isTranscribing} />
       </div>
 
-      <p className="mb-3 text-xs text-zinc-400">Audio is split automatically into smaller uploads. Subtitle times stay aligned to the original audio.</p>
+      <p className="mb-3 text-xs text-zinc-400">Suggested filename: 1-00h00m00s-00h02m00s.mp3. Other names such as part_2.mp3 and clip-10.wav are sorted by their first number. Files without numbers follow in alphabetical order. Timestamp ranges set the clip’s timeline position; files without ranges follow the previous clip. Audio formats must be supported by your browser.</p>
+      {selectedFiles.length > 0 && <section className="border border-zinc-700 rounded-xl p-4 space-y-3" aria-label="Audio file order">
+        <h3 className="font-semibold text-sm">File order · {selectedFiles.length} files</h3>
+        <ol className="max-h-48 overflow-auto space-y-2 text-sm">{orderAudioFiles(selectedFiles).map(({file, info}, index) => <li key={index} className="break-all">{index + 1}. {file.name} <span className="text-zinc-400">· {info.start !== null ? `Starts at ${audioTimestamp(info.start)}` : 'Placed after previous file'}</span></li>)}</ol>
+        <button type="button" className="aces-primary" onClick={() => handleAudioFilesUpload(selectedFiles)}>Generate subtitles</button>
+      </section>}
       {/* Transcription Notice / Loading Banner */}
       {transcribeNotice && (
         <div role="status" aria-live="polite" className={`p-3 rounded-xl text-xs flex items-center justify-between gap-3 ${
@@ -198,8 +215,8 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             )}
             <span className="font-medium">{transcribeNotice}</span>
           </div>
-          {retryAudioFile && !isTranscribing && (
-            <button type="button" onClick={() => handleMp3FileUpload(retryAudioFile)}
+          {retryAudioFiles.length > 0 && !isTranscribing && (
+            <button type="button" onClick={() => handleAudioFilesUpload(retryAudioFiles)}
               className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-500">
               Retry remaining audio
             </button>
