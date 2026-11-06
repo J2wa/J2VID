@@ -1,3 +1,5 @@
+import { ResultTransfer } from './components/ResultTransfer';
+import { mergeImportedResult, type ResultFile } from './utils/resultFiles';
 import { SceneDescriptionDialog } from './components/SceneDescriptionDialog';
 import { generateSceneBatches, type SceneBatchProgress } from './utils/sceneBatches';
 import { useWorkspaceUI } from './components/WorkspaceUI';
@@ -308,7 +310,23 @@ export default function App() {
     }
   };
 
-  const subtitlePanel = <SubtitleList
+  const [subtitleBusy, setSubtitleBusy] = useState(false);
+  const importResults = (file: ResultFile) => {
+    setAnnotationResult(previous => mergeImportedResult(previous, file));
+    if (file.kind === 'scenes') setConfiguredScenes(file.result.scenes.map(scene => ({
+      id: String(scene.scene_id), scene_id: scene.scene_id,
+      start_image: scene.start_image || scene.snapshot_image,
+      snapshot_image: scene.snapshot_image || scene.start_image,
+      raw_description: scene.raw_description || '',
+      initial_background: scene.initial_background
+    })));
+    setPreviewScene(null);
+    setActiveSceneIndex(0);
+    setCurrentTime(0);
+    setApiError(null);
+  };
+  const subtitlePanel = <><ResultTransfer kind="subtitles" result={annotationResult} disabled={subtitleBusy} onImport={importResults}/><SubtitleList
+    onBusyChange={setSubtitleBusy}
     subtitleProvider={subtitleProvider} onSubtitleProviderChange={setSubtitleProvider}
     subtitles={annotationResult?.subtitles || []} currentTime={currentTime}
     onJumpToTime={handleJumpToTime} onEditSubtitle={handleEditSubtitle}
@@ -316,7 +334,7 @@ export default function App() {
     onSubtitlesGenerated={subtitles => setAnnotationResult(previous => ({
       ...(previous || { video_duration: '00:00:00.000', suitability: { status: 'suitable', category: null, confidence: 1, reason: '' }, scenes: [] }), subtitles
     }))} selectedModel={selectedModel} autoFallback={autoFallback}
-  />;
+  /></>;
   return (
     <div className="min-h-screen flex flex-col">
       <Header currentTitle={mode === 'subtitles' ? 'Subtitles' : 'Scene descriptions'}
@@ -341,6 +359,7 @@ export default function App() {
               <div><h1 className="text-3xl font-bold">Scene descriptions</h1><p className="mt-2 text-sm">Snapshots are processed in batches of up to 5, one batch at a time.</p></div>
               <button className="aces-primary" onClick={() => setIsSetupModalOpen(true)}>{annotationResult ? 'Edit uploads' : 'Upload snapshots'}</button>
             </div>
+            <ResultTransfer kind="scenes" result={annotationResult} disabled={isAnalyzing} onImport={importResults}/>
             {annotationResult && <>
               <details className="border p-4"><summary className="cursor-pointer">Preview snapshots & validation</summary><div className="mt-4 grid gap-4 md:grid-cols-2"><SnapshotViewer scenes={annotationResult.scenes} activeSceneIndex={activeSceneIndex} onSelectScene={setActiveSceneIndex} annotationResult={annotationResult}/><ValidationReport annotationResult={annotationResult}/></div></details>
               <SceneList scenes={annotationResult.scenes} currentTime={currentTime} onJumpToTime={handleJumpToTime}

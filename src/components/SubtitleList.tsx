@@ -9,6 +9,7 @@ import { SubtitleAnnotation, SubtitleType, SubtitleProvider } from '../types';
 import { parseTimestampToSeconds } from '../utils/timeUtils';
 
 interface SubtitleListProps {
+  onBusyChange?: (busy: boolean) => void;
   subtitleProvider: SubtitleProvider;
   onSubtitleProviderChange: (value: SubtitleProvider) => void;
   subtitles: SubtitleAnnotation[];
@@ -23,6 +24,7 @@ interface SubtitleListProps {
 }
 
 export const SubtitleList: React.FC<SubtitleListProps> = ({
+  onBusyChange,
   subtitleProvider,
   onSubtitleProviderChange,
   subtitles,
@@ -38,6 +40,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [isTranscribing, setIsTranscribing] = useState(false);
+  useEffect(() => { onBusyChange?.(isTranscribing); return () => onBusyChange?.(false); }, [isTranscribing, onBusyChange]);
   const [transcribeNotice, setTranscribeNotice] = useState<string | null>(null);
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
   const [uploadedAudioName, setUploadedAudioName] = useState<string | null>(null);
