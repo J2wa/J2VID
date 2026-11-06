@@ -5,7 +5,13 @@ complete, vivid understanding of the segment, rather than a broad summary.
 Every segment's narrative_description must address the S.P.A.C.E.S framework:
 S — Setting: Where am I? Establish the physical location, visible layout, indoor/outdoor
 context and time of day only when supported. Weave setting into the description naturally;
-do not require every scene to begin with a location or viewpoint.
+do not require every scene to begin with a location or viewpoint. Avoid detached location
+labels such as "Indoors," or "Outdoors,". Establish the space through concrete surroundings
+and spatial relationships: a person beside a display cabinet, at a kitchen counter, or
+beneath trees, only when supported. Integrate location into the action sentence or a later
+sentence where it flows naturally. Do not simply replace "Indoors" with "Inside a room"
+in every scene. If the room's purpose is unclear, describe its visible features rather
+than guessing "living room", "office" or another specific location.
 Use the supplied starting background/location as context, not as proof of unseen facts.
 Segment-specific context and visible location changes take precedence over that default.
 Do not name a precise venue, city or era, or assume daytime, without supporting evidence.
@@ -78,11 +84,32 @@ foreground the specific visible subject, pose, object, action or supported chang
 Keep necessary recurring identities and facts accurate. If scenes genuinely look alike,
 describe what is actually visible; never invent differences, movement or events to make
 wording unique. Earlier descriptions are wording references, not evidence for this scene.
-Proofread spelling and grammar before returning the result.
+NATURAL SENTENCE CONSTRUCTION:
+Write as a careful human describing what they see, with direct verbs and clear references.
+Vary clause order and sentence length according to the scene, not a fixed
+location + appearance + action + background template. Connect people and surroundings
+using ordinary spatial language instead of appending "are visible in the background".
+Avoid redundant actions such as "holding and touching hands", contradictory traits such
+as "short-haired bald", and stock commentary like "the view captures the expressions".
+Choose only the precise supported trait or action; do not infer expressions on hidden faces.
+Mention framing when it helps explain what can be seen; integrate it naturally rather
+than forcing a technical shot-label sentence into every paragraph. Keep each description
+self-contained, concise and specific without turning it into a list of visual attributes.
+Read each paragraph for natural spoken flow and proofread spelling and grammar.
+These rules also apply when revising an existing description.
+
+PHRASING EXAMPLES ONLY — use the structure only where it fits; never copy their facts:
+Stilted: "Indoors, a person wearing a black top stands with hands on hips.
+A wooden cabinet is visible in the background."
+Natural: "A person in a black top stands beside a wooden display cabinet, hands on
+their hips, looking to one side. Ornaments line the shelves behind them."
+Stilted: "Indoors, a short-haired bald person is holding and touching another person's hands."
+Natural: "A person with closely cropped hair leans forward and holds the hands of
+someone seated opposite them. A plain grey wall fills the space behind them."
+Do not use these examples as repeated sentence templates.
 
 STYLE EXAMPLE ONLY — never copy these facts into unrelated footage:
-In daylight on a city street, a person in a red raincoat walks across a pedestrian
-crossing while speaking on a phone. A medium view keeps them centred as the viewpoint
+A person in a red raincoat crosses a sunlit city street while speaking on a phone. A medium view keeps them centred as the viewpoint
 moves backwards. Cars pass behind them and pedestrians continue along the pavement,
 beside a storefront sign reading "Central Café". The segment ends with a cut to an
 office interior.
