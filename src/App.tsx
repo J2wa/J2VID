@@ -223,6 +223,7 @@ export default function App() {
           startImage: targetScene.start_image,
           initialBackground: globalBackground,
           sceneBackground: targetScene.initial_background,
+          previousSceneDescriptions: annotationResult.scenes.filter(scene => scene.scene_id !== sceneId).map(({ scene_id, narrative_description }) => ({ scene_id, narrative_description })),
           model: selectedModel,
           autoFallback
         })

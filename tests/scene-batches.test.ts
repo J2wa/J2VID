@@ -76,3 +76,16 @@ test('batch snapshots are cumulative and earlier snapshots stay unchanged', asyn
   assert.deepEqual(published.map(p=>p.scenes.length), [5,6]);
   assert.deepEqual(published[1].scenes, result.scenes);
 });
+
+test('later batches receive previous descriptions without previous images', async () => {
+ let calls = 0;
+ await generateSceneBatches(inputs(6), {}, () => {}, async (_url, init) => {
+   const body = JSON.parse(String(init?.body));
+   assert.equal(body.previousSceneDescriptions.length, calls++ === 0 ? 0 : 5);
+   for (const previous of body.previousSceneDescriptions) {
+     assert.deepEqual(Object.keys(previous).sort(), ['narrative_description','scene_id']);
+     assert.equal(previous.narrative_description, 'Visible action ' + previous.scene_id);
+   }
+   return Response.json({suitability:{status:'suitable'},scenes:body.scenesInput.map((s:any)=>({scene_id:s.scene_id,narrative_description:'Visible action '+s.scene_id}))});
+ });
+});

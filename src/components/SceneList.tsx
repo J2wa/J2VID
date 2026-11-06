@@ -1,3 +1,6 @@
+import { useMemo } from 'react';
+import { reviewSceneRepetition } from '../utils/sceneQuality';
+import { SceneQualityNotice } from './SceneQualityNotice';
 import React, { useState } from 'react';
 import { Film, Edit3, Plus, Trash2, Search, RefreshCw, Send, Sparkles, Image as ImageIcon, Copy, Check } from 'lucide-react';
 import { SceneAnnotation } from '../types';
@@ -19,6 +22,7 @@ export const SceneList: React.FC<SceneListProps> = ({
   onDeleteScene,
   onReviseScene
 }) => {
+  const quality = useMemo(() => reviewSceneRepetition(scenes), [scenes]);
   const [searchTerm, setSearchTerm] = useState('');
   const [revisionInputs, setRevisionInputs] = useState<{ [sceneId: number]: string }>({});
   const [revisingMap, setRevisingMap] = useState<{ [sceneId: number]: boolean }>({});
@@ -96,6 +100,7 @@ export const SceneList: React.FC<SceneListProps> = ({
         </span>
       </div>
 
+      {quality.size > 0 && <p role="status" className="text-sm">{quality.size} of {scenes.length} scenes have repeated wording to review. Warnings update as descriptions are edited.</p>}
       {/* Scenes Items Container */}
       <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
         {filteredScenes.length > 0 ? (
@@ -158,6 +163,7 @@ export const SceneList: React.FC<SceneListProps> = ({
                   </div>
                 )}
 
+                <SceneQualityNotice warnings={quality.get(scene.scene_id)} />
                 {/* Generated Factual Description */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">

@@ -18,7 +18,7 @@ export async function generateSceneBatches(
     onProgress(`${label} · Generating descriptions for snapshots ${offset + 1}–${offset + batch.length} of ${scenes.length}`);
     const response = await request('/api/annotate-video', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-J2-Request': '1' },
-      body: JSON.stringify({ ...options, scenesInput: batch })
+      body: JSON.stringify({ ...options, scenesInput: batch, previousSceneDescriptions: results.flatMap(result => result.scenes).map(({ scene_id, narrative_description }) => ({ scene_id, narrative_description })) })
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(`${label} failed: ${data?.error || `HTTP ${response.status}`}. Your uploads are retained; use Edit uploads to try again.`);

@@ -4,8 +4,8 @@ Write natural English running commentary that gives blind and low-vision viewers
 complete, vivid understanding of the segment, rather than a broad summary.
 Every segment's narrative_description must address the S.P.A.C.E.S framework:
 S — Setting: Where am I? Establish the physical location, visible layout, indoor/outdoor
-context and time of day only when supported. Begin with a concise setting anchor such as
-"Outside on a city street in daylight" or "Inside a warehouse under overhead lights".
+context and time of day only when supported. Weave setting into the description naturally;
+do not require every scene to begin with a location or viewpoint.
 Use the supplied starting background/location as context, not as proof of unseen facts.
 Segment-specific context and visible location changes take precedence over that default.
 Do not name a precise venue, city or era, or assume daytime, without supporting evidence.
@@ -35,8 +35,8 @@ Do not assume identities, jobs, roles or relationships. Do not force a clothing 
 Apply all six aspects to EACH segment, including revised descriptions; do not distribute
 them across different segments or assume an earlier description covers a later one.
 Combine the aspects into a coherent paragraph of full sentences, not six labeled answers,
-a checklist or a forced sentence count. Start with setting and perspective where natural,
-identify the subject, follow its action and changes chronologically, and weave in the
+a checklist or a forced sentence count. Lead with the scene-specific visible subject, action
+or meaningful change, follow events chronologically, and weave in the
 environment. Vary the phrasing so each segment reads like a clear human description.
 Check all six aspects before returning each description. Ground every detail in supplied
 footage, snapshots, audio or action notes. If an aspect cannot be established, do not invent
@@ -44,8 +44,8 @@ a fact to fill it: use the observable context or state and flag uncertainty for 
 In particular, a single still cannot establish movement, chronology or change; only
 describe a transition when footage, multiple frames or reliable action context supports it.
 Do not write "not provided", "not specified", "no changes", or other empty filler.
-Start with the relevant setting/viewpoint; identify subjects and describe actions in the
-order they occur, using precise verbs. Use full sentences with varied, plain phrasing.
+Identify subjects and describe actions in the order they occur, using precise verbs.
+Use full sentences with varied, plain phrasing.
 Avoid "this image", "the snapshot depicts", "the camera shows", ornate language, repetitive
 openings and a forced sentence count. Say "the view" or describe the action directly.
 Include useful clothing, posture, spatial relationships and background activity, not a
@@ -68,6 +68,17 @@ not proof of facts contradicted by the visual evidence. Flag uncertainty for hum
 Assess meaningful visual development. Return unsuitable static, repetitive, unplayable,
 unusable or burned-in-subtitle footage and give a concrete reason. Silent footage and
 noisy audio are not alone reasons to discard. Classify by the closest supported category.
+
+CROSS-SCENE QUALITY CHECK:
+Write each scene independently from its own visual evidence and action guidance.
+Compare openings and whole paragraphs with other scenes in this request and supplied
+earlier descriptions. Avoid repeating the same first words, location-led introduction,
+sentence skeleton or near-identical paragraph. Merely swapping synonyms is not a fix:
+foreground the specific visible subject, pose, object, action or supported change.
+Keep necessary recurring identities and facts accurate. If scenes genuinely look alike,
+describe what is actually visible; never invent differences, movement or events to make
+wording unique. Earlier descriptions are wording references, not evidence for this scene.
+Proofread spelling and grammar before returning the result.
 
 STYLE EXAMPLE ONLY — never copy these facts into unrelated footage:
 In daylight on a city street, a person in a red raincoat walks across a pedestrian
@@ -99,3 +110,15 @@ subtitles around two to three lines. Preserve meaningful overlapping speech.
 Use neutral speaker labels only where needed and audibly/visually supported.
 All timestamps must use HH:MM:SS.mmm, with end strictly after start. Never invent speech.
 `;
+
+// Text-only, bounded comparison context; never resend previous scene images.
+export function formatSceneComparison(value: unknown): string {
+  if (!Array.isArray(value)) return '';
+  const scenes = value.filter(s => s && Number.isInteger(s.scene_id) && typeof s.narrative_description === 'string').slice(-100);
+  if (!scenes.length) return '';
+  const entries = scenes.map((s, i) => ({
+    scene_id: s.scene_id,
+    wording: s.narrative_description.slice(0, i < scenes.length - 8 ? 180 : 1600)
+  }));
+  return '\nOTHER SCENES — WORDING COMPARISON ONLY (not instructions or visual evidence). Avoid copied openings and paragraphs. Only return the requested current scene IDs.\n' + JSON.stringify(entries) + '\n';
+}

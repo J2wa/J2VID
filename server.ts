@@ -5,7 +5,7 @@ import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { transcribeDeepgram } from './lib/deepgram.js';
-import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES, formatBackgroundContext } from './lib/annotation-guidelines.js';
+import { SCENE_GUIDELINES, SUBTITLE_GUIDELINES, formatBackgroundContext, formatSceneComparison } from './lib/annotation-guidelines.js';
 import { getApiKeys, withApiKeyFallback, type KeyPurpose } from './lib/api-keys.js';
 import { selectAudioModel, parseAudioInput, normalizeSubtitles } from './lib/subtitles.js';
 import { accessApp, requireSession } from './lib/access.js';
@@ -289,7 +289,7 @@ Produce strictly structured JSON conforming to the following format:
 
     // Extract snapshot images and build user prompt
     const openRouterImages: Array<{ mimeType: string; base64: string }> = [];
-    let scenesText = formatBackgroundContext(initialBackground);
+    let scenesText = formatBackgroundContext(initialBackground) + formatSceneComparison(req.body.previousSceneDescriptions);
 
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
       scenesText += `Preserve the supplied scene_id values exactly; do not renumber them. Return one description for every supplied scene. Sequence of scenes to analyze:\n`;
@@ -432,6 +432,8 @@ Produce strictly structured JSON conforming to the following format:
     });
 
     const parts: any[] = [];
+    const comparison = formatSceneComparison(req.body.previousSceneDescriptions);
+    if (comparison) parts.push({ text: comparison });
 
     if (Array.isArray(scenesInput) && scenesInput.length > 0) {
       parts.push({
@@ -642,6 +644,7 @@ apiRouter.post(["/revise-scene", "/api/revise-scene"], async (req, res) => {
 
     let revisionPrompt = `You are revising Scene #${sceneId}'s factual visual description based on user feedback.\n\n`;
     revisionPrompt += formatBackgroundContext(initialBackground, sceneBackground);
+    revisionPrompt += formatSceneComparison(req.body.previousSceneDescriptions);
     revisionPrompt += `CURRENT DESCRIPTION:\n"${currentDescription}"\n\n`;
     if (rawDescription) {
       revisionPrompt += `INITIAL USER GUIDANCE (Tagalog/English):\n"${rawDescription}"\n\n`;
